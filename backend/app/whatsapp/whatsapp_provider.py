@@ -51,7 +51,7 @@ class WhatsAppCloudProvider(WhatsAppProvider):
         self.access_token = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
         self.phone_number_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
         self.business_account_id = os.getenv("WHATSAPP_BUSINESS_ACCOUNT_ID", "")
-        self.recipient_phone = os.getenv("WHATSAPP_RECIPIENT_PHONE_NUMBER", "+917367966177")
+        self.recipient_phone = os.getenv("WHATSAPP_RECIPIENT_PHONE_NUMBER", "")
         self.api_version = os.getenv("WHATSAPP_API_VERSION", "v20.0")
         self.template_name = os.getenv("WHATSAPP_TEMPLATE_NAME", "urgent_call_alert")
         self.template_lang = os.getenv("WHATSAPP_TEMPLATE_LANG", "en_US")

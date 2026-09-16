@@ -134,3 +134,65 @@ async def test_call_lifecycle(db):
     )
     assert res["urgency"] == "HIGH"
     assert res["sms_alert"] is not None
+
+# 5. Production Health and WhatsApp Webhook Tests
+def test_health_endpoint():
+    from fastapi.testclient import TestClient
+    try:
+        from app.main import app
+    except ImportError:
+        from backend.app.main import app
+    client = TestClient(app)
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+def test_whatsapp_webhook_verification():
+    from fastapi.testclient import TestClient
+    try:
+        from app.main import app
+        from app.core.config import settings
+    except ImportError:
+        from backend.app.main import app
+        from backend.app.core.config import settings
+    client = TestClient(app)
+
+    # Valid token verification
+    response = client.get(
+        "/webhooks/whatsapp",
+        params={
+            "hub.mode": "subscribe",
+            "hub.verify_token": settings.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
+            "hub.challenge": "1158201444"
+        }
+    )
+    assert response.status_code == 200
+    assert response.text == "1158201444"
+
+    # Invalid token verification
+    bad_response = client.get(
+        "/webhooks/whatsapp",
+        params={
+            "hub.mode": "subscribe",
+            "hub.verify_token": "wrong_token",
+            "hub.challenge": "1158201444"
+        }
+    )
+    assert bad_response.status_code == 403
+
+def test_whatsapp_webhook_event_ingestion():
+    from fastapi.testclient import TestClient
+    try:
+        from app.main import app
+    except ImportError:
+        from backend.app.main import app
+    client = TestClient(app)
+
+    payload = {
+        "object": "whatsapp_business_account",
+        "entry": [{"id": "12345", "changes": [{"value": {"messaging_product": "whatsapp"}}]}]
+    }
+    response = client.post("/webhooks/whatsapp", json=payload)
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+

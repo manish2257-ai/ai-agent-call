@@ -11,8 +11,8 @@ from .api import auth, dashboard, calls, contacts, settings as settings_api, urg
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AppMain")
 
-# Create DB tables
-Base.metadata.create_all(bind=engine)
+# DB table initialization
+# Moved into startup_event for production resilience against connection delays
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -45,6 +45,11 @@ app.include_router(call_agent_endpoints.router)
 @app.on_event("startup")
 def startup_event():
     """Seed default owner and demo call records if database is fresh."""
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        logger.warning(f"Database schema check or table creation warning: {e}")
+
     db = SessionLocal()
     try:
         user = db.query(User).filter(User.email == "manish@aicallagent.com").first()
@@ -151,3 +156,7 @@ def root():
         "docs_url": "/docs",
         "demo_mode": settings.DEMO_MODE
     }
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}

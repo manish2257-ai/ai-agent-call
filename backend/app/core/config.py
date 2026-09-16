@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "AI Personal Call Agent"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
-    PORT: int = 8000
+    PORT: int = int(os.getenv("PORT", "8000"))
     HOST: str = "0.0.0.0"
 
     # AI
@@ -39,7 +39,12 @@ class Settings(BaseSettings):
 
     # WhatsApp
     WHATSAPP_ENABLED: bool = True
+    WHATSAPP_ACCESS_TOKEN: Optional[str] = os.getenv("WHATSAPP_ACCESS_TOKEN", None)
+    WHATSAPP_PHONE_NUMBER_ID: Optional[str] = os.getenv("WHATSAPP_PHONE_NUMBER_ID", None)
+    WHATSAPP_BUSINESS_ACCOUNT_ID: Optional[str] = os.getenv("WHATSAPP_BUSINESS_ACCOUNT_ID", None)
+    WHATSAPP_RECIPIENT_PHONE_NUMBER: Optional[str] = os.getenv("WHATSAPP_RECIPIENT_PHONE_NUMBER", None)
     WHATSAPP_WEBHOOK_VERIFY_TOKEN: Optional[str] = os.getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", "ai_call_agent_verify_token_2026")
+    WHATSAPP_API_VERSION: str = os.getenv("WHATSAPP_API_VERSION", "v20.0")
 
     # Rules
     ALERT_COOLDOWN_MINUTES: int = 5

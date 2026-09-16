@@ -15,4 +15,13 @@
 .cxx
 local.properties
 .env
+.env.*
+backend/.env
+backend/.env.*
+*.env
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+secrets/
 debug.keystore

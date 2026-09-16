@@ -173,7 +173,54 @@ To have your AI receptionist answer calls when your personal mobile is unanswere
 
 ---
 
-## 8. Final Acceptance Test Verification
+## 8. Render Deployment
+
+To deploy the FastAPI backend on [Render](https://render.com):
+
+### Option A: Docker Runtime (Recommended if using Docker)
+1. **Create a New Web Service** on Render and connect your GitHub repository (`ai-agent-call`).
+2. **Configure Service Settings:**
+   - **Name:** `ai-call-agent-backend`
+   - **Root Directory:** `backend`
+   - **Environment / Runtime:** `Docker`
+   - **Plan:** `Free`
+   *(Render automatically builds the `Dockerfile` in `backend/` and starts with `uvicorn app.main:app --host 0.0.0.0 --port $PORT`)*
+
+### Option B: Native Python Runtime
+1. **Configure Service Settings:**
+   - **Root Directory:** `backend`
+   - **Environment / Runtime:** `Python 3`
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+   - **Plan:** `Free`
+
+3. **Configure Environment Variables (in Render Dashboard > Environment):**
+   - `PORT`: (Managed automatically by Render, binds dynamically)
+   - `ENVIRONMENT`: `production`
+   - `DEBUG`: `false`
+   - `WHATSAPP_ENABLED`: `true`
+   - `WHATSAPP_WEBHOOK_VERIFY_TOKEN`: `<your-custom-verify-token>`
+   - `WHATSAPP_ACCESS_TOKEN`: `<your-meta-cloud-api-token>`
+   - `WHATSAPP_PHONE_NUMBER_ID`: `<your-meta-phone-number-id>`
+   - `WHATSAPP_BUSINESS_ACCOUNT_ID`: `<your-waba-id>`
+   - `WHATSAPP_RECIPIENT_PHONE_NUMBER`: `<owner-whatsapp-number-with-country-code>`
+   - `JWT_SECRET`: `<secure-random-32-character-secret>`
+   - `OPENAI_API_KEY`: `<your-openai-api-key>` (if using OpenAI voice/LLM features)
+   - `DATABASE_URL`: `<render-postgres-internal-url>` (or external PostgreSQL / default SQLite)
+   - `OWNER_PHONE_NUMBER`: `<owner-phone-number>`
+
+4. **Health Check Endpoint:**
+   - URL Path: `/health`
+   - Expected Response: `{"status":"ok"}`
+
+5. **Meta WhatsApp Webhook Configuration (in Meta Developer Portal):**
+   - **Callback URL:** `https://<YOUR-RENDER-SERVICE-NAME>.onrender.com/webhooks/whatsapp`
+   - **Verify Token:** Match the `WHATSAPP_WEBHOOK_VERIFY_TOKEN` configured in your Render environment variables.
+   - **Webhook Subscriptions:** `messages`
+
+---
+
+## 9. Final Acceptance Test Verification
 
 1. **AI Answering:** Exotel inbound webhook triggers automated greeting.
 2. **AI Identity Disclosure:** AI assistant explicitly identifies itself as an AI.
