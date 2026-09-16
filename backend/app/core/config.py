@@ -2,6 +2,16 @@ import os
 from typing import Optional, List
 from pydantic_settings import BaseSettings
 
+try:
+    from dotenv import load_dotenv
+    # Load .env from current directory or backend directory
+    load_dotenv()
+    backend_env = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
+    if os.path.exists(backend_env):
+        load_dotenv(backend_env)
+except ImportError:
+    pass
+
 class Settings(BaseSettings):
     PROJECT_NAME: str = "AI Personal Call Agent"
     ENVIRONMENT: str = "development"
@@ -32,10 +42,10 @@ class Settings(BaseSettings):
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./call_agent.db")
 
     # JWT
-    JWT_SECRET: str = os.getenv("JWT_SECRET", "super-secret-jwt-key-for-ai-call-agent-control-2026")
-    JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
-    ENCRYPTION_KEY: Optional[str] = os.getenv("ENCRYPTION_KEY", "dev_encryption_key_32_bytes_len!")
+    JWT_SECRET: str = os.getenv("JWT_SECRET") or os.getenv("SECRET_KEY") or "session_jwt_key_unset_configured_via_env"
+    JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
+    ENCRYPTION_KEY: Optional[str] = os.getenv("ENCRYPTION_KEY", None)
 
     # WhatsApp (Meta Cloud API)
     WHATSAPP_ENABLED: bool = True

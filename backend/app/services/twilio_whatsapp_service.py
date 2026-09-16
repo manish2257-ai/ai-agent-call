@@ -36,11 +36,25 @@ class TwilioWhatsAppService:
 
     @property
     def account_sid(self) -> Optional[str]:
-        return os.getenv("TWILIO_ACCOUNT_SID") or os.getenv("TELEPHONY_ACCOUNT_ID") or None
+        val = os.getenv("TWILIO_ACCOUNT_SID") or os.getenv("TELEPHONY_ACCOUNT_ID")
+        if not val:
+            try:
+                from ..core.config import settings
+                val = getattr(settings, "TWILIO_ACCOUNT_SID", None)
+            except Exception:
+                pass
+        return val or None
 
     @property
     def auth_token(self) -> Optional[str]:
-        return os.getenv("TWILIO_AUTH_TOKEN") or os.getenv("TELEPHONY_AUTH_TOKEN") or None
+        val = os.getenv("TWILIO_AUTH_TOKEN") or os.getenv("TELEPHONY_AUTH_TOKEN")
+        if not val:
+            try:
+                from ..core.config import settings
+                val = getattr(settings, "TWILIO_AUTH_TOKEN", None)
+            except Exception:
+                pass
+        return val or None
 
     @property
     def default_from(self) -> str:
