@@ -71,7 +71,7 @@ class PrivacyManager:
         if not text:
             return ""
         # Redact OTP / Password / PIN indicators
-        redacted = re.sub(r'(?i)\b(otp|password|pin|passcode|token|cvv)\s*[:=]?\s*([0-9a-zA-Z]{3,12})\b', r'\1: [REDACTED]', text)
+        redacted = re.sub(r'(?i)\b(otp|password|pin|passcode|token|cvv)\s*(?:is\s*|[:=]\s*)?([0-9a-zA-Z]{3,12})\b', r'\1: [REDACTED]', text)
         # Redact 16-digit card patterns
         redacted = re.sub(r'\b(?:\d{4}[ -]?){3}\d{4}\b', '[CARD NUMBER REDACTED]', redacted)
         return redacted

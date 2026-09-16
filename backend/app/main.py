@@ -6,8 +6,9 @@ from .core.config import settings
 from .database.session import engine, Base, SessionLocal
 from .models.models import User, UserSettings, Call, CallSummary, CallMessage, Contact, UrgencyRuleModel, KnowledgeBaseItem
 from .core.security import get_password_hash
-from .api import auth, dashboard, calls, contacts, settings as settings_api, urgency, knowledge_base, webhooks, analytics, alerts, call_agent_endpoints, whatsapp_api
+from .api import auth, dashboard, calls, contacts, settings as settings_api, urgency, knowledge_base, webhooks, analytics, alerts, call_agent_endpoints, whatsapp_api, openai_api
 from .services.twilio_whatsapp_service import twilio_whatsapp_service
+from .services.openai_service import openai_service
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AppMain")
@@ -43,6 +44,7 @@ app.include_router(analytics.router)
 app.include_router(alerts.router)
 app.include_router(call_agent_endpoints.router)
 app.include_router(whatsapp_api.router)
+app.include_router(openai_api.router)
 
 @app.on_event("startup")
 def startup_event():
@@ -53,6 +55,13 @@ def startup_event():
         logger.info("Twilio WhatsApp service configured successfully.")
     else:
         logger.info(f"Twilio WhatsApp configuration: {config_msg}")
+
+    # Validate OpenAI Configuration safely (never logs secrets)
+    openai_valid, openai_msg = openai_service.validate_configuration()
+    if openai_valid:
+        logger.info(f"OpenAI service configured successfully (model: {openai_service.model}).")
+    else:
+        logger.info(f"OpenAI service configuration note: {openai_msg}")
 
     try:
         Base.metadata.create_all(bind=engine)

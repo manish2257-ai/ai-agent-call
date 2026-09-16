@@ -25,13 +25,11 @@ Return ONLY valid JSON matching this exact schema:
 class UrgencyClassifier:
     @staticmethod
     async def classify(transcript_text: str, caller_name: str = "Caller", caller_number: str = "") -> Dict[str, Any]:
-        # If OpenAI API Key is available, use real OpenAI model
-        if settings.OPENAI_API_KEY and len(settings.OPENAI_API_KEY.strip()) > 10:
+        # If OpenAI API Key is available via openai_service, use real OpenAI model
+        from .openai_service import openai_service
+        if openai_service.is_configured():
             try:
-                import openai
-                client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-                response = await client.chat.completions.create(
-                    model=settings.OPENAI_MODEL,
+                res = await openai_service.chat_completion(
                     messages=[
                         {"role": "system", "content": CLASSIFIER_PROMPT},
                         {"role": "user", "content": f"Transcript:\n{transcript_text}"}
@@ -39,9 +37,9 @@ class UrgencyClassifier:
                     response_format={"type": "json_object"},
                     temperature=0.1
                 )
-                raw_json = response.choices[0].message.content
-                data = json.loads(raw_json)
-                return data
+                if res.get("success") and res.get("content"):
+                    data = json.loads(res["content"])
+                    return data
             except Exception as e:
                 logger.error(f"OpenAI urgency classification failed, falling back to rule-based engine: {e}")
 

@@ -59,28 +59,23 @@ class AIAgentService:
         approved_knowledge: str = "",
         language_mode: str = "English"
     ) -> str:
-        # Check if OpenAI is configured
-        if settings.OPENAI_API_KEY and len(settings.OPENAI_API_KEY.strip()) > 10:
-            try:
-                import openai
-                client = openai.AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-                system_content = AIAgentService.get_system_prompt(personality, custom_prompt, approved_knowledge)
-                if language_mode == "Hindi":
-                    system_content += "\nPlease respond in Hindi (Devanagari script or clean transliterated Roman script)."
-                elif language_mode == "Hinglish":
-                    system_content += "\nPlease respond in natural Hinglish (conversational Hindi-English blend as spoken commonly)."
+        # Check if OpenAI is configured via openai_service
+        from .openai_service import openai_service
+        if openai_service.is_configured():
+            system_content = AIAgentService.get_system_prompt(personality, custom_prompt, approved_knowledge)
+            if language_mode == "Hindi":
+                system_content += "\nPlease respond in Hindi (Devanagari script or clean transliterated Roman script)."
+            elif language_mode == "Hinglish":
+                system_content += "\nPlease respond in natural Hinglish (conversational Hindi-English blend as spoken commonly)."
 
-                full_messages = [{"role": "system", "content": system_content}] + messages
-                response = await client.chat.completions.create(
-                    model=settings.OPENAI_MODEL,
-                    messages=full_messages,
-                    temperature=0.3,
-                    max_tokens=150
-                )
-                return response.choices[0].message.content.strip()
-            except Exception as e:
-                logger.error(f"OpenAI error in conversation turn: {e}")
-                # Fallback to local conversational responder below
+            full_messages = [{"role": "system", "content": system_content}] + messages
+            res = await openai_service.chat_completion(
+                messages=full_messages,
+                temperature=0.3,
+                max_tokens=150
+            )
+            if res.get("success") and res.get("content"):
+                return res["content"]
 
         # High quality local conversation responder for Demo / Fallback
         last_caller_msg = ""

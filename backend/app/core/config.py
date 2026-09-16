@@ -19,10 +19,11 @@ class Settings(BaseSettings):
     PORT: int = int(os.getenv("PORT", "8000"))
     HOST: str = "0.0.0.0"
 
-    # AI
+    # AI / OpenAI
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY", "")
-    OPENAI_MODEL: str = "gpt-4o-mini"
-    OPENAI_VOICE: str = "alloy"
+    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    OPENAI_VOICE: str = os.getenv("OPENAI_VOICE", "alloy")
+    OPENAI_TIMEOUT_SECONDS: float = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "15.0"))
 
     # Telephony
     TELEPHONY_PROVIDER: str = "mock"  # "twilio", "exotel", "plivo", "mock"
@@ -69,7 +70,7 @@ class Settings(BaseSettings):
     DEMO_MODE: bool = True
 
     class Config:
-        env_file = ".env"
+        env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
         extra = "allow"
 
 settings = Settings()
