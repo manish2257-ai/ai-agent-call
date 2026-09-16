@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: ai_call_agent_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: ai_call_agent
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+  backend:
+    build: .
+    container_name: ai_call_agent_backend
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://postgres:postgrespassword@db:5432/ai_call_agent
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      TELEPHONY_PROVIDER: ${TELEPHONY_PROVIDER:-mock}
+      SMS_PROVIDER: ${SMS_PROVIDER:-mock}
+      OWNER_PHONE_NUMBER: ${OWNER_PHONE_NUMBER:-+19876543210}
+      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-2026}
+      DEMO_MODE: "true"
+    ports:
+      - "8000:8000"
+    restart: always
+
+volumes:
+  postgres_data:

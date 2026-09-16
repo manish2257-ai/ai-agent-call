@@ -1,0 +1,6 @@
+{
+  "name": "AI Call Agent",
+  "description": "Control dashboard for AI Personal Call Agent system with real-time call screening, urgency classification, and automated SMS alerts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
