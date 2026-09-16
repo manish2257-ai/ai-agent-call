@@ -123,9 +123,27 @@ class SMSService:
         if res.get("success"):
             cls.record_alert_dispatched(caller_key)
 
+        # Dispatch WhatsApp Notification via Twilio if configured
+        whatsapp_res = None
+        try:
+            from .twilio_whatsapp_service import twilio_whatsapp_service
+            whatsapp_res = await twilio_whatsapp_service.dispatch_urgent_alert(
+                call_id=call_id,
+                caller=caller,
+                caller_number=caller_number,
+                urgency=urgency,
+                reason=reason,
+                summary=summary,
+                user_id=str(user_settings.user_id) if user_settings else None,
+                bypass_cooldown=bypass_cooldown
+            )
+        except Exception as wa_err:
+            logger.warning(f"Twilio WhatsApp alert dispatch encountered error: {wa_err}")
+
         return {
             "success": res.get("success", False),
             "status": status_val,
             "message_text": msg_text,
-            "provider": provider.get_provider_name()
+            "provider": provider.get_provider_name(),
+            "whatsapp_alert": whatsapp_res
         }

@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     ENCRYPTION_KEY: Optional[str] = os.getenv("ENCRYPTION_KEY", "dev_encryption_key_32_bytes_len!")
 
-    # WhatsApp
+    # WhatsApp (Meta Cloud API)
     WHATSAPP_ENABLED: bool = True
     WHATSAPP_ACCESS_TOKEN: Optional[str] = os.getenv("WHATSAPP_ACCESS_TOKEN", None)
     WHATSAPP_PHONE_NUMBER_ID: Optional[str] = os.getenv("WHATSAPP_PHONE_NUMBER_ID", None)
@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     WHATSAPP_RECIPIENT_PHONE_NUMBER: Optional[str] = os.getenv("WHATSAPP_RECIPIENT_PHONE_NUMBER", None)
     WHATSAPP_WEBHOOK_VERIFY_TOKEN: Optional[str] = os.getenv("WHATSAPP_WEBHOOK_VERIFY_TOKEN", "ai_call_agent_verify_token_2026")
     WHATSAPP_API_VERSION: str = os.getenv("WHATSAPP_API_VERSION", "v20.0")
+
+    # Twilio WhatsApp Configuration
+    TWILIO_ACCOUNT_SID: Optional[str] = os.getenv("TWILIO_ACCOUNT_SID", None)
+    TWILIO_AUTH_TOKEN: Optional[str] = os.getenv("TWILIO_AUTH_TOKEN", None)
+    TWILIO_WHATSAPP_FROM: str = os.getenv("TWILIO_WHATSAPP_FROM", "whatsapp:+17372508034")
+    TWILIO_WHATSAPP_TO: str = os.getenv("TWILIO_WHATSAPP_TO", "whatsapp:+917367966177")
+    TWILIO_CONTENT_SID: str = os.getenv("TWILIO_CONTENT_SID", "HXfe5ab5f00277942d4d4200328b4d403c")
 
     # Rules
     ALERT_COOLDOWN_MINUTES: int = 5

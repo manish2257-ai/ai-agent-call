@@ -196,3 +196,108 @@ def test_whatsapp_webhook_event_ingestion():
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
+# 6. Twilio WhatsApp Service & API Tests
+def test_twilio_whatsapp_status_endpoint():
+    from fastapi.testclient import TestClient
+    try:
+        from app.main import app
+    except ImportError:
+        from backend.app.main import app
+    client = TestClient(app)
+    response = client.get("/api/whatsapp/status")
+    assert response.status_code == 200
+    data = response.json()
+    assert "configured" in data
+    assert "status" in data
+    # Ensure auth token is NOT present in any response key or value
+    assert "auth_token" not in data
+    assert "TWILIO_AUTH_TOKEN" not in data
+
+def test_twilio_whatsapp_test_unconfigured(monkeypatch):
+    from fastapi.testclient import TestClient
+    try:
+        from app.main import app
+    except ImportError:
+        from backend.app.main import app
+    
+    # Ensure environment variables are clear
+    monkeypatch.delenv("TWILIO_ACCOUNT_SID", raising=False)
+    monkeypatch.delenv("TWILIO_AUTH_TOKEN", raising=False)
+    monkeypatch.delenv("TELEPHONY_ACCOUNT_ID", raising=False)
+    monkeypatch.delenv("TELEPHONY_AUTH_TOKEN", raising=False)
+
+    client = TestClient(app)
+    response = client.post("/api/whatsapp/test", json={})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is False
+    assert "incomplete" in data["message"].lower()
+
+def test_twilio_whatsapp_send_with_mock_client(monkeypatch):
+    import os
+    from unittest.mock import MagicMock
+    try:
+        from app.services.twilio_whatsapp_service import twilio_whatsapp_service
+    except ImportError:
+        from backend.app.services.twilio_whatsapp_service import twilio_whatsapp_service
+
+    monkeypatch.setenv("TWILIO_ACCOUNT_SID", "ACtest1234567890abcdef1234567890ab")
+    monkeypatch.setenv("TWILIO_AUTH_TOKEN", "mock_auth_token_secret_value")
+
+    # Mock Twilio Client
+    mock_client = MagicMock()
+    mock_msg = MagicMock()
+    mock_msg.sid = "SM1234567890abcdef1234567890abcdef"
+    mock_msg.status = "queued"
+    mock_client.messages.create.return_value = mock_msg
+
+    monkeypatch.setattr("twilio.rest.Client", lambda sid, token: mock_client)
+
+    result = twilio_whatsapp_service.send_whatsapp_message(
+        to="whatsapp:+917367966177",
+        from_="whatsapp:+17372508034",
+        content_sid="HXfe5ab5f00277942d4d4200328b4d403c",
+        bypass_cooldown=True
+    )
+
+    assert result["success"] is True
+    assert result["sid"] == "SM1234567890abcdef1234567890abcdef"
+    assert result["status"] == "queued"
+    # Never expose auth token
+    assert "mock_auth_token_secret_value" not in str(result)
+
+def test_twilio_whatsapp_cooldown_prevention(monkeypatch):
+    from unittest.mock import MagicMock
+    try:
+        from app.services.twilio_whatsapp_service import twilio_whatsapp_service
+    except ImportError:
+        from backend.app.services.twilio_whatsapp_service import twilio_whatsapp_service
+
+    monkeypatch.setenv("TWILIO_ACCOUNT_SID", "ACtest1234567890abcdef1234567890ab")
+    monkeypatch.setenv("TWILIO_AUTH_TOKEN", "mock_auth_token_secret_value")
+
+    mock_client = MagicMock()
+    mock_msg = MagicMock()
+    mock_msg.sid = "SM1234567890abcdef1234567890abcdef"
+    mock_msg.status = "queued"
+    mock_client.messages.create.return_value = mock_msg
+    monkeypatch.setattr("twilio.rest.Client", lambda sid, token: mock_client)
+
+    # First send with call_id
+    res1 = twilio_whatsapp_service.send_whatsapp_message(
+        to="whatsapp:+917367966177",
+        call_id="call_test_loop_123",
+        bypass_cooldown=False
+    )
+    assert res1["success"] is True
+
+    # Immediate second send for the same call should be suppressed by cooldown
+    res2 = twilio_whatsapp_service.send_whatsapp_message(
+        to="whatsapp:+917367966177",
+        call_id="call_test_loop_123",
+        bypass_cooldown=False
+    )
+    assert res2["success"] is True
+    assert res2["status"] == "SUPPRESSED_BY_COOLDOWN"
+
+

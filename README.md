@@ -220,7 +220,122 @@ To deploy the FastAPI backend on [Render](https://render.com):
 
 ---
 
-## 9. Final Acceptance Test Verification
+## 10. Twilio WhatsApp Setup
+
+### Overview
+The backend integrates Twilio WhatsApp messaging to dispatch real-time alerts when urgent or critical calls are detected by the AI agent. It supports both the Twilio WhatsApp Sandbox (using template Content SIDs) and production WhatsApp Business Profiles.
+
+### Required Environment Variables
+Configure these in your backend `.env` file or cloud deployment dashboard (e.g., Render Environment Variables):
+
+```bash
+# Twilio WhatsApp Configuration
+TWILIO_ACCOUNT_SID="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+TWILIO_AUTH_TOKEN="your_auth_token_here"
+TWILIO_WHATSAPP_FROM="whatsapp:+17372508034"
+TWILIO_WHATSAPP_TO="whatsapp:+917367966177"
+TWILIO_CONTENT_SID="HXfe5ab5f00277942d4d4200328b4d403c"
+```
+
+> **Security Rule:** Never commit `TWILIO_AUTH_TOKEN` to version control or expose it to client applications.
+
+### Where to Find Twilio Account SID and Configure Auth Token
+1. Log into your [Twilio Console](https://console.twilio.com/).
+2. On the **Dashboard**, under **Account Info**:
+   - **Account SID:** Copy your `Account SID` (starts with `AC...`) and set it to `TWILIO_ACCOUNT_SID`.
+   - **Auth Token:** Click "Show" next to `Auth Token`, copy it, and set it to `TWILIO_AUTH_TOKEN`.
+3. In Twilio Console, navigate to **Messaging > Try it out > Send a WhatsApp message** to activate your Twilio WhatsApp Sandbox number (`whatsapp:+17372508034`).
+4. Join the sandbox from your recipient phone by sending the join keyword (e.g. `join <sandbox-keyword>`) to `+1 737 250 8034`.
+
+### How to Install Dependencies
+From the `backend` directory:
+```bash
+cd backend
+pip install -r requirements.txt
+```
+*(Dependencies include `twilio>=9.1.0` and `python-dotenv>=1.0.1`)*
+
+### How to Start the Backend
+```bash
+cd backend
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+On Render (Docker runtime), the container automatically starts with:
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+### How to Test WhatsApp
+You can verify the Twilio WhatsApp integration immediately using either curl or Swagger:
+
+#### 1. Via curl:
+```bash
+curl -X POST "http://localhost:8000/api/whatsapp/test" \
+     -H "Content-Type: application/json" \
+     -d '{}'
+```
+
+Expected Response:
+```json
+{
+  "success": true,
+  "message": "WhatsApp message submitted successfully",
+  "sid": "SMxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "status": "queued"
+}
+```
+
+If credentials are not yet configured:
+```json
+{
+  "success": false,
+  "message": "Twilio WhatsApp configuration is incomplete.",
+  "error": "Twilio WhatsApp configuration is incomplete."
+}
+```
+
+#### 2. Via Swagger / OpenAPI UI:
+1. Open your browser and navigate to:
+   - Local: `http://localhost:8000/docs`
+   - Render: `https://<YOUR-RENDER-SERVICE-NAME>.onrender.com/docs`
+2. Scroll to the **WhatsApp** tag.
+3. Open `POST /api/whatsapp/test`, click **Try it out**, and click **Execute**.
+4. Check `GET /api/whatsapp/status` to safely verify configuration readiness without exposing your Auth Token.
+
+### How the WhatsApp Notification Flow Works
+```
+Incoming Call / Simulation
+           ↓
+AI Urgency Classifier (Detects HIGH or CRITICAL)
+           ↓
+Alert System (SMSService & CallManager)
+           ↓
+Twilio WhatsApp Service (Deduplication / Cooldown Check)
+           ↓
+Twilio Python SDK (client.messages.create with Content SID)
+           ↓
+WhatsApp Message Delivered to Owner Device
+           ↓
+Firebase Firestore (Stores whatsapp_status, whatsapp_message_sid, whatsapp_sent_at)
+```
+
+- **Loop & Cooldown Prevention:** The service tracks recent dispatches per caller/call to ensure notifications are never fired in an uncontrolled loop.
+- **Fault Tolerance:** If Twilio is temporarily unavailable or credentials expire, the error is safely caught and logged, preventing any disruption to ongoing calls, SMS, or app operations.
+- **Firebase Status Sync:** Records `whatsapp_status`, `whatsapp_message_sid`, and `whatsapp_sent_at` in Firestore, without ever storing the Twilio Auth Token.
+
+### Sandbox Limitations
+- In the Twilio Sandbox, messages can only be sent to phone numbers that have explicitly opted in using the sandbox join code.
+- Outbound messages from the Sandbox must use pre-approved sandbox Content Templates (such as `TWILIO_CONTENT_SID=HXfe5ab5f00277942d4d4200328b4d403c`).
+- Session windows: Users must interact within 24 hours for open two-way text messages, or use Content Templates outside the 24-hour window.
+
+### How to Switch to Production Later
+To migrate from Twilio Sandbox to a production WhatsApp Business Profile:
+1. In Twilio Console, go to **Messaging > Senders > WhatsApp senders** and register your WhatsApp Business Profile with your official phone number.
+2. Update `TWILIO_WHATSAPP_FROM` to your approved production WhatsApp sender (e.g. `whatsapp:+1XXXXXXXXXX`).
+3. Create your custom WhatsApp message templates in Twilio Content Editor, submit them to Meta for approval, and update `TWILIO_CONTENT_SID` with your approved production Content SID.
+4. No application code changes are required—all configuration is managed via environment variables!
+
 
 1. **AI Answering:** Exotel inbound webhook triggers automated greeting.
 2. **AI Identity Disclosure:** AI assistant explicitly identifies itself as an AI.

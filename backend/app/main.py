@@ -6,7 +6,8 @@ from .core.config import settings
 from .database.session import engine, Base, SessionLocal
 from .models.models import User, UserSettings, Call, CallSummary, CallMessage, Contact, UrgencyRuleModel, KnowledgeBaseItem
 from .core.security import get_password_hash
-from .api import auth, dashboard, calls, contacts, settings as settings_api, urgency, knowledge_base, webhooks, analytics, alerts, call_agent_endpoints
+from .api import auth, dashboard, calls, contacts, settings as settings_api, urgency, knowledge_base, webhooks, analytics, alerts, call_agent_endpoints, whatsapp_api
+from .services.twilio_whatsapp_service import twilio_whatsapp_service
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AppMain")
@@ -41,10 +42,18 @@ app.include_router(webhooks.router)
 app.include_router(analytics.router)
 app.include_router(alerts.router)
 app.include_router(call_agent_endpoints.router)
+app.include_router(whatsapp_api.router)
 
 @app.on_event("startup")
 def startup_event():
-    """Seed default owner and demo call records if database is fresh."""
+    """Seed default owner, validate configurations, and initialize tables."""
+    # Validate Twilio WhatsApp Configuration
+    is_valid, config_msg = twilio_whatsapp_service.validate_configuration()
+    if is_valid:
+        logger.info("Twilio WhatsApp service configured successfully.")
+    else:
+        logger.info(f"Twilio WhatsApp configuration: {config_msg}")
+
     try:
         Base.metadata.create_all(bind=engine)
     except Exception as e:
