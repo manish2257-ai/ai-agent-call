@@ -26,14 +26,21 @@ class Settings(BaseSettings):
     OPENAI_TIMEOUT_SECONDS: float = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "15.0"))
 
     # Telephony
-    TELEPHONY_PROVIDER: str = "mock"  # "twilio", "exotel", "plivo", "mock"
+    TELEPHONY_PROVIDER: str = os.getenv("TELEPHONY_PROVIDER", "exotel")
     TELEPHONY_ACCOUNT_ID: Optional[str] = os.getenv("TELEPHONY_ACCOUNT_ID", "")
     TELEPHONY_AUTH_TOKEN: Optional[str] = os.getenv("TELEPHONY_AUTH_TOKEN", "")
-    TELEPHONY_PHONE_NUMBER: str = os.getenv("TELEPHONY_PHONE_NUMBER", "+18005550199")
-    TELEPHONY_WEBHOOK_URL: str = os.getenv("TELEPHONY_WEBHOOK_URL", "http://localhost:8000/webhooks/telephony/incoming")
+    TELEPHONY_PHONE_NUMBER: str = os.getenv("TELEPHONY_PHONE_NUMBER", "")
+    TELEPHONY_WEBHOOK_URL: str = os.getenv("TELEPHONY_WEBHOOK_URL", "")
+
+    # Exotel Production Telephony
+    EXOTEL_ACCOUNT_SID: Optional[str] = os.getenv("EXOTEL_ACCOUNT_SID", None)
+    EXOTEL_API_KEY: Optional[str] = os.getenv("EXOTEL_API_KEY", None)
+    EXOTEL_API_TOKEN: Optional[str] = os.getenv("EXOTEL_API_TOKEN", None)
+    EXOTEL_VIRTUAL_NUMBER: Optional[str] = os.getenv("EXOTEL_VIRTUAL_NUMBER", None)
+    EXOTEL_SUBDOMAIN: str = os.getenv("EXOTEL_SUBDOMAIN", "api.exotel.com")
 
     # SMS
-    SMS_PROVIDER: str = "mock"  # "twilio", "exotel", "mock"
+    SMS_PROVIDER: str = os.getenv("SMS_PROVIDER", "exotel")
     SMS_ACCOUNT_ID: Optional[str] = os.getenv("SMS_ACCOUNT_ID", "")
     SMS_AUTH_TOKEN: Optional[str] = os.getenv("SMS_AUTH_TOKEN", "")
     SMS_FROM_NUMBER: str = os.getenv("SMS_FROM_NUMBER", "+18005550199")
@@ -67,7 +74,7 @@ class Settings(BaseSettings):
     # Rules
     ALERT_COOLDOWN_MINUTES: int = 5
     MAX_CALL_DURATION_SECONDS: int = 300
-    DEMO_MODE: bool = True
+    DEMO_MODE: bool = os.getenv("DEMO_MODE", "false").lower() == "true"
 
     class Config:
         env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
