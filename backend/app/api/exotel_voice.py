@@ -8,6 +8,9 @@ import os
 import logging
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Request, status
+from ..services.stt_service import stt_service
+from ..services.llm_service import llm_service
+from ..services.tts_service import tts_service
 
 logger = logging.getLogger("exotel_voice_router")
 
@@ -148,6 +151,11 @@ def get_exotel_diagnostic(request: Request):
             "status": "READY" if openai_ready else "NOT READY",
             "credentials_loaded": openai_ready,
             "model": os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        },
+        "providers": {
+            "stt_provider": stt_service.provider_name,
+            "llm_provider": llm_service.provider_name,
+            "tts_provider": tts_service.provider_name,
         },
         "seed_calls_enabled": False,
         "simulated_calls_enabled": False

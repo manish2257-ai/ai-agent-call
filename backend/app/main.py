@@ -124,6 +124,11 @@ def startup_event():
     # Safe startup diagnostics for OpenAI (never logs secrets)
     openai_valid, openai_msg = openai_service.validate_configuration()
     logger.info("OpenAI Startup Diagnostics: configured=%s, model=%s", openai_valid, openai_service.model)
+
+    # Safe startup diagnostics for STT Provider (never logs secrets)
+    from .services.stt_service import stt_service
+    from .services.gemini_stt_service import gemini_stt_service
+    logger.info("STT Provider Startup Diagnostics: STT_PROVIDER=%s, GEMINI_CONFIGURED=%s", stt_service.provider_name, "true" if gemini_stt_service.is_configured() else "false")
     if openai_valid:
         try:
             loop = asyncio.get_event_loop()

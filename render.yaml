@@ -3,6 +3,13 @@ services:
     name: ai-call-agent-backend
     runtime: python
     rootDir: backend
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && python -c "import os, urllib.request, zipfile; m='models/vosk-model-small-en-us-0.15'; os.makedirs('models', exist_ok=True); (not os.path.exists(m)) and (urllib.request.urlretrieve('https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip', 'models/m.zip'), zipfile.ZipFile('models/m.zip').extractall('models'), os.remove('models/m.zip'))"
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
+    envVars:
+      - key: STT_PROVIDER
+        value: local
+      - key: LLM_PROVIDER
+        value: local
+      - key: TTS_PROVIDER
+        value: local

@@ -19,6 +19,9 @@ import math
 import struct
 from typing import Dict, Any, List, Optional
 from ..services.openai_service import openai_service
+from ..services.stt_service import stt_service
+from ..services.llm_service import llm_service
+from ..services.tts_service import tts_service
 
 logger = logging.getLogger("VoicebotStream")
 
@@ -277,13 +280,13 @@ class VoicebotCallSession:
                 SILENCE_CONSECUTIVE_FRAMES * FRAME_DURATION_MS,
             )
 
-            # 1. Speech to text via Whisper
+            # 1. Speech to text via STT Provider (Gemini / OpenAI abstraction)
             logger.info("STT request dispatched: stream_sid=%s, bytes=%d, duration=%.2fs, sample_rate=%d", self.stream_sid, len(pcm_audio), duration_sec, SAMPLE_RATE)
             try:
-                stt_result = await openai_service.transcribe_audio(pcm_audio, sample_rate=SAMPLE_RATE)
+                stt_result = await stt_service.transcribe_audio(pcm_audio, sample_rate=SAMPLE_RATE)
             except Exception as e:
-                logger.warning("Transcription exception: %s", openai_service._sanitize_error(str(e)))
-                stt_result = {"success": False, "text": "", "error": "Transcription failed"}
+                logger.warning("Transcription exception: %s", stt_service._sanitize_error(str(e)))
+                stt_result = {"success": False, "text": "", "error": "Transcription failed", "status": "UNKNOWN"}
 
             caller_text = (stt_result.get("text") or "").strip()
             stt_status = stt_result.get("status", "UNKNOWN")
@@ -311,16 +314,15 @@ class VoicebotCallSession:
             logger.info("Transcription succeeded: stream_sid=%s, transcript_length=%d", self.stream_sid, len(caller_text))
             self.history.append({"role": "user", "content": caller_text})
 
-            # 2. Chat completion
+            # 2. Chat completion via LLM Provider abstraction
             logger.info("AI response started: stream_sid=%s", self.stream_sid)
             try:
-                chat_result = await openai_service.chat_completion(
+                chat_result = await llm_service.generate_response(
                     messages=self.history,
-                    max_tokens=150,
-                    temperature=0.3,
+                    caller_speech=caller_text
                 )
             except Exception as e:
-                logger.warning("AI response exception: %s", openai_service._sanitize_error(str(e)))
+                logger.warning("AI response exception: %s", str(e))
                 chat_result = {"success": False, "content": None}
 
             if chat_result.get("success") and chat_result.get("content"):
@@ -332,16 +334,16 @@ class VoicebotCallSession:
 
             self.history.append({"role": "assistant", "content": ai_reply})
 
-            # 3. Text to speech and streaming
+            # 3. Text to speech and streaming via TTS Provider abstraction
             await self.play_text_to_caller(ai_reply)
 
     async def play_text_to_caller(self, text: str) -> None:
         """Synthesizes text and streams 20ms audio frames to Exotel."""
         logger.info("TTS started: stream_sid=%s, chars=%d", self.stream_sid, len(text))
         try:
-            tts_result = await openai_service.generate_speech(text, target_sample_rate=SAMPLE_RATE)
+            tts_result = await tts_service.generate_speech(text, target_sample_rate=SAMPLE_RATE)
         except Exception as e:
-            logger.warning("TTS exception: %s", openai_service._sanitize_error(str(e)))
+            logger.warning("TTS exception: %s", str(e))
             tts_result = {"success": False, "pcm_audio": b""}
 
         pcm_audio = tts_result.get("pcm_audio") or tts_result.get("pcm_bytes") or b""

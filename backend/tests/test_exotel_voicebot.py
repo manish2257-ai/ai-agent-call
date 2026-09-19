@@ -93,8 +93,12 @@ def test_websocket_media_stream_handshake():
 
         # 2. Send ping event
         ws.send_text(json.dumps({"event": "ping"}))
-        pong = json.loads(ws.receive_text())
-        assert pong["event"] == "pong"
+        # Drain any greeting media packets that may arrive concurrently before pong
+        while True:
+            resp = json.loads(ws.receive_text())
+            if resp.get("event") == "pong":
+                break
+        assert resp["event"] == "pong"
 
         # 3. Send audio media packet (should not error)
         ws.send_text(json.dumps({

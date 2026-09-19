@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     PORT: int = int(os.getenv("PORT", "8000"))
     HOST: str = "0.0.0.0"
 
+    # AI Provider Defaults (Production Local Offline)
+    STT_PROVIDER: str = os.getenv("STT_PROVIDER", "local")
+    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "local")
+    TTS_PROVIDER: str = os.getenv("TTS_PROVIDER", "local")
+
     # AI / OpenAI
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY", "")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")

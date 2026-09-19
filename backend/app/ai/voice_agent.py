@@ -30,7 +30,12 @@ class AIVoiceAgent:
     def __init__(self):
         self.api_key = os.getenv("OPENAI_API_KEY", "")
         self.model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-        self.demo_mode = os.getenv("DEMO_MODE", "true").lower() == "true" or not self.api_key
+        self.llm_provider = os.getenv("LLM_PROVIDER", "").strip().lower()
+        self.demo_mode = (
+            os.getenv("DEMO_MODE", "true").lower() == "true"
+            or not self.api_key
+            or self.llm_provider in ("local", "heuristic", "free")
+        )
         self.client = AsyncOpenAI(api_key=self.api_key) if self.api_key else None
 
     async def generate_response(

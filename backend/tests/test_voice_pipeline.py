@@ -121,8 +121,11 @@ def test_websocket_media_event_handling():
         
         # Send ping
         ws.send_text(json.dumps({'event': 'ping'}))
-        pong = json.loads(ws.receive_text())
-        assert pong['event'] == 'pong'
+        while True:
+            resp = json.loads(ws.receive_text())
+            if resp.get('event') == 'pong':
+                break
+        assert resp['event'] == 'pong'
         
         # Send stop
         ws.send_text(json.dumps({'event': 'stop'}))
