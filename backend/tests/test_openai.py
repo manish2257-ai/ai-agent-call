@@ -122,3 +122,71 @@ async def test_ai_agent_graceful_fallback(monkeypatch):
     assert reply is not None
     assert len(reply) > 10
     assert "outage" in reply.lower() or "urgent" in reply.lower() or "manish" in reply.lower()
+
+
+def test_classify_error_categories():
+    service = OpenAIService()
+
+    # A) Insufficient Quota
+    quota_err = Exception("Error code: 429 - {'error': {'message': 'You have no credits remaining', 'type': 'insufficient_quota', 'code': 'credit_balance_exhausted'}}")
+    status, msg = service.classify_error(quota_err)
+    assert status == "INSUFFICIENT_QUOTA"
+    assert "quota/credits exhausted" in msg
+
+    # B) Authentication Failure
+    auth_err = Exception("Error code: 401 - {'error': {'message': 'Incorrect API key provided'}}")
+    status, msg = service.classify_error(auth_err)
+    assert status == "AUTHENTICATION_FAILED"
+    assert "authentication failed" in msg
+
+    # C) Rate limit
+    rate_err = Exception("Error code: 429 - {'error': {'message': 'Rate limit reached for requests'}}")
+    status, msg = service.classify_error(rate_err)
+    assert status == "RATE_LIMITED"
+
+    # D) Timeout & Connection
+    timeout_err = Exception("Request timed out (APITimeoutError)")
+    status, msg = service.classify_error(timeout_err)
+    assert status == "TIMEOUT"
+
+    conn_err = Exception("APIConnectionError: Connection reset by peer")
+    status, msg = service.classify_error(conn_err)
+    assert status == "CONNECTION_ERROR"
+
+
+@pytest.mark.asyncio
+async def test_transcribe_audio_empty_and_short_audio():
+    service = OpenAIService()
+    empty_res = await service.transcribe_audio(b"")
+    assert empty_res["success"] is False
+    assert empty_res["status"] == "EMPTY_AUDIO"
+
+    short_res = await service.transcribe_audio(b"\x00" * 10)
+    assert short_res["success"] is False
+    assert short_res["status"] == "INVALID_AUDIO"
+
+
+@pytest.mark.asyncio
+async def test_transcribe_audio_handles_insufficient_quota(monkeypatch):
+    mock_key = "sk-proj-test123456789012345"
+    monkeypatch.setenv("OPENAI_API_KEY", mock_key)
+
+    service = OpenAIService()
+    mock_client = AsyncMock()
+    mock_client.audio.transcriptions.create.side_effect = Exception(
+        "Error code: 429 - {'error': {'message': 'You have no credits remaining', 'type': 'insufficient_quota', 'code': 'credit_balance_exhausted'}}"
+    )
+    monkeypatch.setattr("openai.AsyncOpenAI", lambda **kwargs: mock_client)
+    try:
+        import app.services.openai_service as oai_module
+    except ImportError:
+        import backend.app.services.openai_service as oai_module
+    monkeypatch.setattr(oai_module, "AsyncOpenAI", lambda **kwargs: mock_client)
+
+    dummy_pcm = bytes([16, 0]) * 320  # 640 bytes (40ms audio)
+    res = await service.transcribe_audio(dummy_pcm)
+    assert res["success"] is False
+    assert res["status"] == "INSUFFICIENT_QUOTA"
+    assert "quota/credits exhausted" in res["error"]
+    assert mock_key not in str(res)
+

@@ -58,6 +58,19 @@ def calculate_rms(pcm_bytes: bytes) -> float:
         return 0.0
 
 
+def calculate_peak_amplitude(pcm_bytes: bytes) -> int:
+    """Computes peak absolute sample amplitude for 16-bit PCM samples."""
+    if not pcm_bytes or len(pcm_bytes) < 2:
+        return 0
+    num_samples = len(pcm_bytes) // 2
+    fmt = f"<{num_samples}h"
+    try:
+        samples = struct.unpack(fmt, pcm_bytes[:num_samples * 2])
+        return max(abs(s) for s in samples)
+    except Exception:
+        return 0
+
+
 # Alias for test suite compatibility
 calculate_pcm_rms = calculate_rms
 
@@ -207,6 +220,19 @@ class VoicebotCallSession:
             return
 
         rms = calculate_rms(raw_pcm)
+        peak = calculate_peak_amplitude(raw_pcm)
+
+        if self.total_media_packets % 100 == 1 or rms > ENERGY_THRESHOLD:
+            logger.info(
+                "Inbound media diag: packet=%d, bytes=%d, rms=%.1f, peak=%d, vad_speech_frames=%d, vad_silence_frames=%d, threshold=%d",
+                self.total_media_packets,
+                len(raw_pcm),
+                rms,
+                peak,
+                self.speech_frames,
+                self.silence_frames,
+                ENERGY_THRESHOLD,
+            )
 
         if rms > ENERGY_THRESHOLD:
             self.speech_frames += 1
@@ -243,14 +269,16 @@ class VoicebotCallSession:
 
             duration_sec = len(pcm_audio) / (SAMPLE_RATE * SAMPLE_WIDTH)
             logger.info(
-                "Utterance received: stream_sid=%s, bytes=%d, duration=%.2fs",
+                "Utterance buffer submitted: stream_sid=%s, bytes=%d, duration=%.2fs, min_speech_ms=%d, silence_ms=%d",
                 self.stream_sid,
                 len(pcm_audio),
                 duration_sec,
+                MIN_SPEECH_FRAMES * FRAME_DURATION_MS,
+                SILENCE_CONSECUTIVE_FRAMES * FRAME_DURATION_MS,
             )
 
             # 1. Speech to text via Whisper
-            logger.info("Transcription started: stream_sid=%s, duration=%.2fs", self.stream_sid, duration_sec)
+            logger.info("STT request dispatched: stream_sid=%s, bytes=%d, duration=%.2fs, sample_rate=%d", self.stream_sid, len(pcm_audio), duration_sec, SAMPLE_RATE)
             try:
                 stt_result = await openai_service.transcribe_audio(pcm_audio, sample_rate=SAMPLE_RATE)
             except Exception as e:
@@ -258,16 +286,29 @@ class VoicebotCallSession:
                 stt_result = {"success": False, "text": "", "error": "Transcription failed"}
 
             caller_text = (stt_result.get("text") or "").strip()
+            stt_status = stt_result.get("status", "UNKNOWN")
+            logger.info(
+                "STT result received: stream_sid=%s, success=%s, transcript_length=%d, status=%s",
+                self.stream_sid,
+                stt_result.get("success"),
+                len(caller_text),
+                stt_status,
+            )
             if not stt_result.get("success") or not caller_text:
-                if not stt_result.get("success"):
-                    logger.warning("Transcription failed: stream_sid=%s", self.stream_sid)
+                if stt_status == "INSUFFICIENT_QUOTA":
+                    logger.warning(
+                        "OpenAI API quota/credits exhausted. Voice STT/TTS requires available API billing credits. (stream_sid=%s)",
+                        self.stream_sid,
+                    )
+                elif not stt_result.get("success"):
+                    logger.warning("Transcription failed: stream_sid=%s, status=%s", self.stream_sid, stt_status)
                 else:
                     logger.info("Transcription succeeded with empty speech: stream_sid=%s", self.stream_sid)
                 fallback_prompt = "I'm sorry, I had trouble hearing that. Could you please repeat?"
                 await self.play_text_to_caller(fallback_prompt)
                 return
 
-            logger.info("Transcription succeeded: stream_sid=%s, text='%s'", self.stream_sid, caller_text)
+            logger.info("Transcription succeeded: stream_sid=%s, transcript_length=%d", self.stream_sid, len(caller_text))
             self.history.append({"role": "user", "content": caller_text})
 
             # 2. Chat completion

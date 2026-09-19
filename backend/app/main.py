@@ -11,6 +11,7 @@ for _p in [_backend_dir, _workspace_dir]:
 import datetime
 import logging
 import json
+import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from .core.config import settings
@@ -119,12 +120,22 @@ def startup_event():
     else:
         logger.info(f"Twilio WhatsApp configuration: {config_msg}")
 
-    # Validate OpenAI Configuration safely (never logs secrets)
+    # Safe startup diagnostics for OpenAI (never logs secrets)
     openai_valid, openai_msg = openai_service.validate_configuration()
+    logger.info("OpenAI Startup Diagnostics: configured=%s, model=%s", openai_valid, openai_service.model)
     if openai_valid:
-        logger.info(f"OpenAI service configured successfully (model: {openai_service.model}).")
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                async def _startup_diag():
+                    diag = await openai_service.check_api_diagnostics()
+                    if diag.get("quota_exhausted"):
+                        logger.warning("OpenAI API quota/credits exhausted. Voice STT/TTS requires available API billing credits.")
+                loop.create_task(_startup_diag())
+        except Exception as e:
+            logger.debug("OpenAI async startup check note: %s", e)
     else:
-        logger.info(f"OpenAI service configuration note: {openai_msg}")
+        logger.info("OpenAI service configuration note: %s", openai_msg)
 
     try:
         Base.metadata.create_all(bind=engine)

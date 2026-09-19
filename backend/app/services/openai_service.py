@@ -95,6 +95,167 @@ class OpenAIService:
 
         return sanitized
 
+    def classify_error(self, exc: Exception) -> Tuple[str, str]:
+        """
+        Safely classifies OpenAI and network exceptions without exposing secrets.
+        Distinguishes:
+        A) insufficient_quota / credit_balance_exhausted
+        B) authentication failure
+        C) rate limit (concurrency / RPM / TPM)
+        D) network failure (timeout / connection error)
+        E) invalid audio
+        F) other OpenAI API errors
+        Returns:
+            Tuple[status_string, safe_error_message]
+        """
+        if not exc:
+            return "UNKNOWN", "Unknown error occurred"
+
+        exc_name = type(exc).__name__
+        exc_str = str(exc).lower()
+
+        # A) Insufficient Quota / Credit Balance Exhausted (HTTP 429)
+        if (
+            "credit_balance_exhausted" in exc_str
+            or "insufficient_quota" in exc_str
+            or ("quota" in exc_str and "credit" in exc_str)
+            or ("no credits remaining" in exc_str)
+        ):
+            safe_msg = "OpenAI API quota/credits exhausted. Voice STT/TTS requires available API billing credits."
+            logger.warning("OpenAI API quota/credits exhausted. Voice STT/TTS requires available API billing credits.")
+            return "INSUFFICIENT_QUOTA", safe_msg
+
+        # B) Authentication Failure (HTTP 401)
+        if (
+            (HAS_OPENAI_SDK and isinstance(exc, openai.AuthenticationError))
+            or "authenticationerror" in exc_name.lower()
+            or getattr(exc, "status_code", None) == 401
+            or "401" in exc_str
+            or "incorrect api key" in exc_str
+            or "invalid_api_key" in exc_str
+            or "invalid api key" in exc_str
+        ):
+            safe_msg = "OpenAI authentication failed. Please verify OPENAI_API_KEY configuration."
+            logger.error("OpenAI AuthenticationError: %s", safe_msg)
+            return "AUTHENTICATION_FAILED", safe_msg
+
+        # C) Rate Limit (HTTP 429 - tokens/requests per minute)
+        if (
+            (HAS_OPENAI_SDK and isinstance(exc, openai.RateLimitError))
+            or "ratelimiterror" in exc_name.lower()
+            or getattr(exc, "status_code", None) == 429
+            or "rate limit" in exc_str
+            or "ratelimit" in exc_str
+            or "429" in exc_str
+        ):
+            safe_msg = "OpenAI rate limit exceeded. Please retry shortly."
+            logger.warning("OpenAI RateLimitError: %s", safe_msg)
+            return "RATE_LIMITED", safe_msg
+
+        # D) Network Failure (Timeout / Connection Error)
+        if (
+            (HAS_OPENAI_SDK and isinstance(exc, openai.APITimeoutError))
+            or "timeouterror" in exc_name.lower()
+            or "timeout" in exc_str
+            or "timed out" in exc_str
+        ):
+            safe_msg = f"OpenAI request timed out after {self.timeout_seconds} seconds."
+            logger.error("OpenAI APITimeoutError: %s", safe_msg)
+            return "TIMEOUT", safe_msg
+
+        if (
+            (HAS_OPENAI_SDK and isinstance(exc, openai.APIConnectionError))
+            or "connectionerror" in exc_name.lower()
+            or "connection" in exc_str
+            or "network" in exc_str
+        ):
+            safe_msg = "Could not connect to OpenAI API servers. Please check network connectivity."
+            logger.error("OpenAI APIConnectionError: %s", safe_msg)
+            return "CONNECTION_ERROR", safe_msg
+
+        # F) Other OpenAI API errors
+        safe_err = self._sanitize_error(str(exc))
+        if (HAS_OPENAI_SDK and isinstance(exc, openai.BadRequestError)) or getattr(exc, "status_code", None) == 400:
+            logger.error("OpenAI BadRequestError: %s", safe_err)
+            return "BAD_REQUEST", safe_err
+
+        logger.error("OpenAI %s: %s", exc_name, safe_err)
+        return "FAILED", safe_err
+
+    async def check_api_diagnostics(self) -> Dict[str, Any]:
+        """
+        Executes safe startup/runtime diagnostics:
+        - OPENAI_API_KEY is configured: true/false
+        - OPENAI_MODEL is configured
+        - OpenAI API request reaches the expected endpoint / servers
+        - HTTP 429 is reported clearly as billing/quota exhaustion
+        NEVER logs or exposes the API key, token, or auth headers.
+        """
+        is_valid, config_err = self.validate_configuration()
+        if not is_valid:
+            logger.info("OpenAI Diagnostics: configured=False (OPENAI_API_KEY not configured or empty)")
+            return {
+                "configured": False,
+                "model": self.model,
+                "api_reachable": False,
+                "quota_exhausted": False,
+                "status": "NOT_CONFIGURED",
+                "message": config_err
+            }
+
+        client = AsyncOpenAI(api_key=self.api_key, timeout=self.timeout_seconds)
+        api_reachable = False
+        quota_exhausted = False
+        diagnostic_status = "READY"
+        diagnostic_message = "OpenAI API is reachable and operational."
+
+        try:
+            # 1. Check API reachability via model metadata list
+            raw = await client.models.with_raw_response.list()
+            api_reachable = True
+            req_id = raw.headers.get("x-request-id", "present")
+            logger.info(
+                "OpenAI Diagnostics: configured=True, model=%s, api_reachable=True (request_id_present=%s)",
+                self.model,
+                bool(req_id)
+            )
+        except Exception as e:
+            status, safe_err = self.classify_error(e)
+            if status == "INSUFFICIENT_QUOTA":
+                api_reachable = True
+                quota_exhausted = True
+                diagnostic_status = "INSUFFICIENT_QUOTA"
+                diagnostic_message = "OpenAI API quota/credits exhausted. Voice STT/TTS requires available API billing credits."
+            else:
+                diagnostic_status = status
+                diagnostic_message = safe_err
+                logger.warning("OpenAI Diagnostics reachability check note: %s", safe_err)
+
+        # 2. Check completions quota if not already detected
+        if api_reachable and not quota_exhausted:
+            try:
+                await client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": "ping"}],
+                    max_tokens=1
+                )
+            except Exception as e:
+                status, safe_err = self.classify_error(e)
+                if status == "INSUFFICIENT_QUOTA":
+                    quota_exhausted = True
+                    diagnostic_status = "INSUFFICIENT_QUOTA"
+                    diagnostic_message = "OpenAI API quota/credits exhausted. Voice STT/TTS requires available API billing credits."
+                    logger.warning("OpenAI Diagnostics: HTTP 429 quota/credits exhausted. Voice STT/TTS requires available API billing credits.")
+
+        return {
+            "configured": True,
+            "model": self.model,
+            "api_reachable": api_reachable,
+            "quota_exhausted": quota_exhausted,
+            "status": diagnostic_status,
+            "message": diagnostic_message
+        }
+
     async def chat_completion(
         self,
         messages: List[Dict[str, str]],
@@ -141,49 +302,12 @@ class OpenAIService:
                 "status": "READY"
             }
 
-        except openai.AuthenticationError as auth_err:
-            safe_msg = "OpenAI authentication failed. Please verify OPENAI_API_KEY configuration."
-            logger.error("OpenAI AuthenticationError: %s", safe_msg)
-            return {
-                "success": False,
-                "error": safe_msg,
-                "status": "AUTHENTICATION_FAILED",
-                "content": None
-            }
-        except openai.RateLimitError as rate_err:
-            safe_msg = "OpenAI rate limit or quota exceeded. Please check your OpenAI account billing."
-            logger.error("OpenAI RateLimitError: %s", safe_msg)
-            return {
-                "success": False,
-                "error": safe_msg,
-                "status": "RATE_LIMITED",
-                "content": None
-            }
-        except openai.APITimeoutError:
-            safe_msg = f"OpenAI request timed out after {self.timeout_seconds} seconds."
-            logger.error("OpenAI APITimeoutError: %s", safe_msg)
-            return {
-                "success": False,
-                "error": safe_msg,
-                "status": "TIMEOUT",
-                "content": None
-            }
-        except openai.APIConnectionError:
-            safe_msg = "Could not connect to OpenAI API servers. Please check network connectivity."
-            logger.error("OpenAI APIConnectionError: %s", safe_msg)
-            return {
-                "success": False,
-                "error": safe_msg,
-                "status": "CONNECTION_ERROR",
-                "content": None
-            }
         except Exception as e:
-            safe_err = self._sanitize_error(str(e))
-            logger.error("OpenAI unexpected error: %s", safe_err)
+            status, safe_msg = self.classify_error(e)
             return {
                 "success": False,
-                "error": safe_err,
-                "status": "FAILED",
+                "error": safe_msg,
+                "status": status,
                 "content": None
             }
 
@@ -195,23 +319,37 @@ class OpenAIService:
         """
         Transcribes 16-bit linear PCM audio using OpenAI Whisper.
         Encapsulates raw PCM into an in-memory WAV container before dispatching.
+        Safely distinguishes:
+        A) insufficient_quota / credit_balance_exhausted
+        B) authentication failure
+        C) rate limit
+        D) network failure
+        E) invalid audio
+        F) other OpenAI API errors
         """
         if not pcm_data:
             return {"success": False, "text": "", "error": "Empty PCM audio buffer", "status": "EMPTY_AUDIO"}
+
+        if len(pcm_data) < 320:  # Less than 20ms of 8kHz 16-bit audio
+            return {"success": False, "text": "", "error": "Audio buffer too short to transcribe", "status": "INVALID_AUDIO"}
 
         is_valid, config_err = self.validate_configuration()
         if not is_valid:
             logger.warning("STT transcription skipped: %s", config_err)
             return {"success": False, "text": "", "error": config_err, "status": "NOT_CONFIGURED"}
 
-        wav_buffer = io.BytesIO()
-        with wave.open(wav_buffer, "wb") as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(sample_rate)
-            wf.writeframes(pcm_data)
-        wav_buffer.seek(0)
-        wav_bytes = wav_buffer.read()
+        try:
+            wav_buffer = io.BytesIO()
+            with wave.open(wav_buffer, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(sample_rate)
+                wf.writeframes(pcm_data)
+            wav_buffer.seek(0)
+            wav_bytes = wav_buffer.read()
+        except Exception as e:
+            logger.error("Failed to construct WAV container from PCM: %s", e)
+            return {"success": False, "text": "", "error": "Invalid PCM audio encoding", "status": "INVALID_AUDIO"}
 
         client = AsyncOpenAI(api_key=self.api_key, timeout=self.timeout_seconds)
         try:
@@ -220,12 +358,15 @@ class OpenAIService:
                 file=("caller_audio.wav", wav_bytes, "audio/wav")
             )
             text = (transcript.text or "").strip()
-            logger.info("Transcribed caller speech (%d bytes PCM) -> '%s'", len(pcm_data), text)
+            logger.info("Transcribed caller speech (%d bytes PCM) -> transcript_length=%d", len(pcm_data), len(text))
             return {"success": True, "text": text, "status": "SUCCESS"}
         except Exception as e:
-            safe_err = self._sanitize_error(str(e))
-            logger.error("Whisper transcription error: %s", safe_err)
-            return {"success": False, "text": "", "error": safe_err, "status": "FAILED"}
+            status, safe_err = self.classify_error(e)
+            if status == "INSUFFICIENT_QUOTA":
+                logger.warning("OpenAI API quota/credits exhausted. Voice STT/TTS requires available API billing credits.")
+            else:
+                logger.error("Whisper transcription error (%s): %s", status, safe_err)
+            return {"success": False, "text": "", "error": safe_err, "status": status}
 
     def _resample_pcm(
         self,
@@ -332,8 +473,11 @@ class OpenAIService:
                         "source": "openai"
                     }
             except Exception as e:
-                safe_err = self._sanitize_error(str(e))
-                logger.warning("OpenAI TTS failed (%s); engaging local telephony speech fallback", safe_err)
+                status, safe_err = self.classify_error(e)
+                if status == "INSUFFICIENT_QUOTA":
+                    logger.warning("OpenAI API quota/credits exhausted. Voice STT/TTS requires available API billing credits.")
+                else:
+                    logger.warning("OpenAI TTS failed (%s: %s); engaging local telephony speech fallback", status, safe_err)
 
         # Fallback to local audio synthesis
         logger.info("Synthesizing speech via local telephony fallback for: '%s'", clean_text[:40])
