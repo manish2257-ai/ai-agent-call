@@ -19,10 +19,11 @@ class ExotelTelephonyProvider(TelephonyProvider):
         call_id = payload.get("CallSid", payload.get("CallUUID", "exo_mock"))
         logger.info(f"Exotel incoming call: {call_id} from {caller}")
         # Exotel uses Applet flows / JSON callback responses
+        app_url = os.getenv("APP_URL", "").rstrip("/")
         response_body = {
             "action": "play_and_record",
-            "prompt_url": "https://api.yourdomain.com/static/greeting.mp3",
-            "callback_url": "https://api.yourdomain.com/webhooks/telephony/media"
+            "prompt_url": f"{app_url}/static/greeting.mp3" if app_url else "/static/greeting.mp3",
+            "callback_url": f"{app_url}/webhooks/telephony/media" if app_url else "/webhooks/telephony/media"
         }
         return {"content_type": "application/json", "body": response_body}
 

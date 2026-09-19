@@ -5,14 +5,14 @@ import logging
 logger = logging.getLogger("MockTelephony")
 
 class MockTelephonyProvider(TelephonyProvider):
-    def __init__(self, phone_number: str = "+18005550199"):
+    def __init__(self, phone_number: str = ""):
         self.phone_number = phone_number
 
     def get_provider_name(self) -> str:
-        return "MockTelephony (Demo)"
+        return "MockTelephony (Disabled)"
 
     async def handle_incoming_call(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        caller = payload.get("From", "+919876543210")
+        caller = payload.get("From", "Unknown")
         logger.info(f"[DEMO SIMULATION] Answered simulated call from {caller}")
         return {
             "status": "answered",

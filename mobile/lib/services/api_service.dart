@@ -23,15 +23,15 @@ class ApiService {
       }
     } catch (_) {}
     return {
-      'agentStatus': 'ONLINE',
-      'totalCallsToday': 3,
-      'totalUrgentCalls': 1,
+      'agentStatus': 'OFFLINE',
+      'totalCallsToday': 0,
+      'totalUrgentCalls': 0,
       'connectionStatus': {
-        'firebase': 'CONNECTED',
-        'openAI': 'CONNECTED',
-        'exotel': 'CONNECTED',
-        'sms': 'CONNECTED',
-        'whatsapp': 'CONNECTED',
+        'firebase': 'DISCONNECTED',
+        'openAI': 'NOT_CONFIGURED',
+        'exotel': 'NOT_CONFIGURED',
+        'sms': 'NOT_CONFIGURED',
+        'whatsapp': 'NOT_CONFIGURED',
       }
     };
   }

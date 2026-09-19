@@ -47,7 +47,7 @@ async def handle_incoming_webhook(
         return Response(content=twiml_off, media_type="application/xml")
 
     # Create new incoming call record
-    caller_num = data.get("From", "+919876543210")
+    caller_num = data.get("From", "Unknown")
     call = CallManager.create_incoming_call(
         db=db,
         user_id=user_id,

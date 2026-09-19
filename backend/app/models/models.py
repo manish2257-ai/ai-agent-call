@@ -52,8 +52,8 @@ class UserSettings(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), index=True, unique=True, nullable=False)
     is_agent_enabled = Column(Boolean, default=True)
-    ai_phone_number = Column(String(50), default="+18005550199")
-    owner_phone_number = Column(String(50), default="+19876543210")
+    ai_phone_number = Column(String(50), nullable=True, default=None)
+    owner_phone_number = Column(String(50), nullable=True, default=None)
     greeting = Column(Text, default="Hello, you've reached Manish's AI assistant. Manish isn't available to take the call right now. I can help you with your request and pass along an important message. How can I help?")
     personality = Column(String(50), default="Professional")  # Professional, Friendly, Concise, Business, Personal Assistant
     system_prompt = Column(Text, nullable=True)

@@ -76,10 +76,6 @@ class DashboardScreen extends StatelessWidget {
 
               // Latest Call Section
               _buildLatestCallCard(context, provider),
-              const SizedBox(height: 20),
-
-              // Interactive Testing & Demo Engine
-              _buildDemoActionsCard(context, provider),
             ],
           ),
         ),
@@ -250,76 +246,6 @@ class DashboardScreen extends StatelessWidget {
                 label: const Text('View Call Details'),
               ),
             )
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDemoActionsCard(BuildContext context, CallAgentProvider provider) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Demo & Test Control', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-            const SizedBox(height: 4),
-            Text('Simulate inbound calls and test alerts without live telephony charges:', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ActionChip(
-                  avatar: const Icon(Icons.call, size: 16),
-                  label: const Text('Test Normal Call'),
-                  onPressed: () {
-                    provider.simulateCallScenario('enquiry');
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Simulated Normal Call (Priya - Advisory Enquiry)')));
-                  },
-                ),
-                ActionChip(
-                  avatar: const Icon(Icons.warning_amber_rounded, size: 16, color: Color(0xFFF97316)),
-                  label: const Text('Test Urgent Call'),
-                  onPressed: () {
-                    provider.simulateCallScenario('outage');
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Simulated Urgent Call (Rahul - Website Outage) -> SMS Dispatched!')));
-                  },
-                ),
-                ActionChip(
-                  avatar: const Icon(Icons.sms_outlined, size: 16),
-                  label: const Text('Test SMS Alert'),
-                  onPressed: () {
-                    provider.sendTestSms();
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sent Test SMS to owner phone via Exotel gateway.')));
-                  },
-                ),
-                ActionChip(
-                  avatar: const Icon(Icons.chat_bubble_outline_rounded, size: 16, color: Color(0xFF25D366)),
-                  label: const Text('Test WhatsApp Alert'),
-                  onPressed: () async {
-                    final res = await provider.sendTestWhatsApp();
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          backgroundColor: res['success'] == true ? Colors.green[800] : Colors.red[800],
-                          content: Text(res['message'] ?? 'Test WhatsApp alert dispatched!'),
-                        ),
-                      );
-                    }
-                  },
-                ),
-                ActionChip(
-                  avatar: const Icon(Icons.notifications_active_outlined, size: 16),
-                  label: const Text('Test Push Notification'),
-                  onPressed: () {
-                    provider.sendTestPush();
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sent FCM Test Push Notification.')));
-                  },
-                ),
-              ],
-            ),
           ],
         ),
       ),

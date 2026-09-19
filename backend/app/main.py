@@ -17,9 +17,10 @@ from .core.config import settings
 from .database.session import engine, Base, SessionLocal
 from .models.models import User, UserSettings, Call, CallSummary, CallMessage, Contact, UrgencyRuleModel, KnowledgeBaseItem
 from .core.security import get_password_hash
-from .api import auth, dashboard, calls, contacts, settings as settings_api, urgency, knowledge_base, webhooks, analytics, alerts, call_agent_endpoints, whatsapp_api, openai_api, exotel_voice
+from .api import auth, dashboard, calls, contacts, settings as settings_api, urgency, knowledge_base, webhooks, analytics, alerts, call_agent_endpoints, whatsapp_api, openai_api, exotel_voice, app_config
 from .services.twilio_whatsapp_service import twilio_whatsapp_service
 from .services.openai_service import openai_service
+from .telephony.voicebot_stream import VoicebotCallSession
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("AppMain")
@@ -57,6 +58,7 @@ app.include_router(call_agent_endpoints.router)
 app.include_router(whatsapp_api.router)
 app.include_router(openai_api.router)
 app.include_router(exotel_voice.router)
+app.include_router(app_config.router)
 
 @app.websocket("/ws/media-stream")
 async def websocket_media_stream(websocket: WebSocket):
@@ -66,6 +68,7 @@ async def websocket_media_stream(websocket: WebSocket):
     """
     await websocket.accept()
     logger.info("WebSocket media stream connection accepted.")
+    session = VoicebotCallSession(websocket)
     try:
         while True:
             message = await websocket.receive()
@@ -76,33 +79,35 @@ async def websocket_media_stream(websocket: WebSocket):
                 try:
                     data = json.loads(message["text"])
                     event = data.get("event")
-                    if event == "start":
-                        stream_sid = data.get("streamSid", "stream_production")
-                        logger.info(f"Media stream started for streamSid: {stream_sid}")
-                        await websocket.send_text(json.dumps({
-                            "event": "ack",
-                            "status": "connected",
-                            "streamSid": stream_sid
-                        }))
+                    if event == "connected":
+                        await session.handle_connected(data)
+                    elif event == "start":
+                        await session.handle_start(data)
                     elif event == "media":
-                        # Process real audio frame from Exotel telephony
-                        pass
+                        await session.handle_media(data)
+                    elif event == "dtmf":
+                        await session.handle_dtmf(data)
+                    elif event == "mark":
+                        await session.handle_mark(data)
                     elif event == "ping":
-                        await websocket.send_text(json.dumps({"event": "pong"}))
+                        await session.send_json({"event": "pong"})
                     elif event == "stop":
-                        logger.info("Media stream stop event received.")
+                        await session.handle_stop(data)
                         break
                     else:
-                        await websocket.send_text(json.dumps({"event": "ack", "status": "received"}))
+                        await session.send_json({"event": "ack", "status": "received"})
                 except json.JSONDecodeError:
-                    await websocket.send_text(json.dumps({"event": "ack", "raw": message["text"]}))
+                    await session.send_json({"event": "ack", "raw": message["text"]})
             elif "bytes" in message:
-                # Raw audio chunk
-                pass
+                # Raw audio chunk if sent in binary mode
+                raw_bytes = message["bytes"]
+                await session.handle_media({"media": {"payload": base64.b64encode(raw_bytes).decode("ascii")}})
     except (WebSocketDisconnect, RuntimeError):
         logger.info("WebSocket media stream connection closed cleanly.")
     except Exception as e:
         logger.warning(f"WebSocket media stream handler: {e}")
+    finally:
+        session.cleanup()
 
 @app.on_event("startup")
 def startup_event():
@@ -130,12 +135,12 @@ def startup_event():
     try:
         user = db.query(User).filter(User.email == "manish@aicallagent.com").first()
         if not user:
-            logger.info("Seeding default owner user and demo data...")
+            logger.info("Initializing default owner account...")
             user = User(
                 email="manish@aicallagent.com",
                 hashed_password=get_password_hash("password123"),
                 full_name="Manish Kumar",
-                phone_number="+19876543210"
+                phone_number=os.getenv("OWNER_PHONE_NUMBER") or None
             )
             db.add(user)
             db.commit()
@@ -144,8 +149,8 @@ def startup_event():
             # User Settings
             user_settings = UserSettings(
                 user_id=user.id,
-                ai_phone_number="+18005550199",
-                owner_phone_number="+19876543210",
+                ai_phone_number=os.getenv("EXOTEL_VIRTUAL_NUMBER") or None,
+                owner_phone_number=os.getenv("OWNER_PHONE_NUMBER") or None,
                 greeting="Hello, you've reached Manish's AI assistant. Manish isn't available to take the call right now. I can help you with your request and pass along an important message. How can I help?",
                 personality="Professional",
                 urgency_threshold="HIGH",
@@ -154,76 +159,8 @@ def startup_event():
                 is_agent_enabled=True
             )
             db.add(user_settings)
-
-            if settings.DEMO_MODE:
-                # Seed Demo Calls (Demo Mode Only)
-                demo_call_1 = Call(
-                    id="call_demo_outage",
-                    user_id=user.id,
-                    caller_number="+919876543210",
-                    caller_name="Rahul Verma",
-                    status="Escalated",
-                    urgency="HIGH",
-                    duration_seconds=54,
-                    reason="Website outage and checkout blockage",
-                    created_at=datetime.datetime.utcnow() - datetime.timedelta(minutes=35)
-                )
-                db.add(demo_call_1)
-
-                demo_call_2 = Call(
-                    id="call_demo_enquiry",
-                    user_id=user.id,
-                    caller_number="+919811223344",
-                    caller_name="Priya Sharma",
-                    status="Completed",
-                    urgency="LOW",
-                    duration_seconds=38,
-                    reason="General inquiry about consulting slots",
-                    created_at=datetime.datetime.utcnow() - datetime.timedelta(hours=2)
-                )
-                db.add(demo_call_2)
-
-                demo_call_3 = Call(
-                    id="call_demo_contract",
-                    user_id=user.id,
-                    caller_number="+919844556677",
-                    caller_name="Vikram Sethi",
-                    status="Escalated",
-                    urgency="HIGH",
-                    duration_seconds=42,
-                    reason="Client project contract deadline today",
-                    created_at=datetime.datetime.utcnow() - datetime.timedelta(hours=5)
-                )
-                db.add(demo_call_3)
-
-                db.commit()
-
-                # Add summaries and messages
-                s1 = CallSummary(
-                    call_id="call_demo_outage",
-                    summary_text="Rahul reported that the website is unavailable and customers cannot place orders.",
-                    action_required="Owner should investigate the website and check payment gateway.",
-                    callback_required=True,
-                    ai_outcome="Dispatched urgent SMS alert to owner."
-                )
-                m1 = CallMessage(call_id="call_demo_outage", speaker="AI", content="Hello, you've reached Manish's AI assistant. How can I help?", timestamp_str="10:41 AM")
-                m2 = CallMessage(call_id="call_demo_outage", speaker="Caller", content="The website is down and users cannot check out.", timestamp_str="10:41 AM")
-                m3 = CallMessage(call_id="call_demo_outage", speaker="AI", content="I understand. I am dispatching a HIGH priority alert to Manish immediately.", timestamp_str="10:42 AM")
-                db.add_all([s1, m1, m2, m3])
-
-                s2 = CallSummary(
-                    call_id="call_demo_enquiry",
-                    summary_text="Priya asked about business hours and consulting booking policy.",
-                    action_required="Sent routine info. No immediate callback needed.",
-                    callback_required=False,
-                    ai_outcome="Handled routine enquiry with approved knowledge."
-                )
-                db.add(s2)
-
-                db.commit()
-                logger.info("Database initialized with demo data.")
-            else:
-                logger.info("Database initialized in production mode (no seed/demo calls created).")
+            db.commit()
+            logger.info("Database initialized without demo or placeholder data.")
     finally:
         db.close()
 

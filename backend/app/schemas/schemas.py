@@ -10,7 +10,7 @@ class UserRegister(BaseModel):
     email: str
     password: str
     full_name: Optional[str] = "Manish"
-    phone_number: Optional[str] = "+19876543210"
+    phone_number: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: str
@@ -28,8 +28,8 @@ class UserResponse(BaseModel):
 
 class UserSettingsSchema(BaseModel):
     is_agent_enabled: bool = True
-    ai_phone_number: str = "+18005550199"
-    owner_phone_number: str = "+19876543210"
+    ai_phone_number: Optional[str] = None
+    owner_phone_number: Optional[str] = None
     greeting: str
     personality: str = "Professional"
     system_prompt: Optional[str] = None
@@ -140,8 +140,8 @@ class DashboardStats(BaseModel):
     last_urgent_alert: Optional[Dict[str, Any]] = None
 
 class TestAlertRequest(BaseModel):
-    caller_name: str = "Rahul"
-    caller_number: str = "+919876543210"
+    caller_name: str = "Test Caller"
+    caller_number: Optional[str] = None
     urgency: str = "HIGH"
     reason: str = "Website is currently unavailable"
     summary: str = "Customer reports that users cannot place orders."

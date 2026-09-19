@@ -24,7 +24,7 @@ def get_exotel_config_status() -> Dict[str, Any]:
     token_present = bool(api_token)
     num_present = bool(virtual_number)
     
-    is_ready = sid_present and key_present and token_present
+    is_ready = sid_present and key_present and token_present and num_present
     
     missing = []
     if not sid_present:
@@ -163,6 +163,7 @@ def get_voicebot_url(request: Request):
     scheme = "wss" if wss_url.startswith("wss://") else "ws"
 
     return {
+        "url": wss_url,
         "status": "READY",
         "protocol": scheme,
         "endpoint": "/ws/media-stream",

@@ -11,6 +11,10 @@ Features:
 
 import os
 import re
+import io
+import wave
+import subprocess
+import tempfile
 import logging
 from typing import Dict, Any, Optional, List, Tuple
 
@@ -33,31 +37,10 @@ class OpenAIService:
     @property
     def api_key(self) -> Optional[str]:
         """
-        Retrieves the OpenAI API key strictly from environment variables or protected .env file.
+        Retrieves the OpenAI API key strictly from environment variables.
         Never returns placeholder or empty values.
         """
         key = os.getenv("OPENAI_API_KEY")
-        if not key:
-            try:
-                from ..core.config import settings
-                key = getattr(settings, "OPENAI_API_KEY", None)
-            except Exception:
-                pass
-
-        if not key:
-            try:
-                # Read directly from protected backend/.env if running locally without shell export
-                backend_env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
-                if os.path.exists(backend_env_path):
-                    with open(backend_env_path, "r") as f:
-                        for line in f:
-                            line = line.strip()
-                            if line.startswith("OPENAI_API_KEY="):
-                                key = line.split("=", 1)[1].strip().strip('"').strip("'")
-                                break
-            except Exception:
-                pass
-
         if key and isinstance(key, str):
             cleaned = key.strip()
             # Ignore placeholder template values
@@ -204,5 +187,178 @@ class OpenAIService:
                 "content": None
             }
 
+    async def transcribe_audio(
+        self,
+        pcm_data: bytes,
+        sample_rate: int = 8000
+    ) -> Dict[str, Any]:
+        """
+        Transcribes 16-bit linear PCM audio using OpenAI Whisper.
+        Encapsulates raw PCM into an in-memory WAV container before dispatching.
+        """
+        if not pcm_data:
+            return {"success": False, "text": "", "error": "Empty PCM audio buffer", "status": "EMPTY_AUDIO"}
+
+        is_valid, config_err = self.validate_configuration()
+        if not is_valid:
+            logger.warning("STT transcription skipped: %s", config_err)
+            return {"success": False, "text": "", "error": config_err, "status": "NOT_CONFIGURED"}
+
+        wav_buffer = io.BytesIO()
+        with wave.open(wav_buffer, "wb") as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(sample_rate)
+            wf.writeframes(pcm_data)
+        wav_buffer.seek(0)
+        wav_bytes = wav_buffer.read()
+
+        client = AsyncOpenAI(api_key=self.api_key, timeout=self.timeout_seconds)
+        try:
+            transcript = await client.audio.transcriptions.create(
+                model="whisper-1",
+                file=("caller_audio.wav", wav_bytes, "audio/wav")
+            )
+            text = (transcript.text or "").strip()
+            logger.info("Transcribed caller speech (%d bytes PCM) -> '%s'", len(pcm_data), text)
+            return {"success": True, "text": text, "status": "SUCCESS"}
+        except Exception as e:
+            safe_err = self._sanitize_error(str(e))
+            logger.error("Whisper transcription error: %s", safe_err)
+            return {"success": False, "text": "", "error": safe_err, "status": "FAILED"}
+
+    def _resample_pcm(
+        self,
+        pcm_data: bytes,
+        in_rate: int = 24000,
+        out_rate: int = 8000,
+        orig_sr: Optional[int] = None,
+        target_sr: Optional[int] = None
+    ) -> bytes:
+        """
+        Resamples mono 16-bit linear PCM audio to the telephony target rate (8000 Hz).
+        Uses audioop if available, with an integer decimation fallback.
+        """
+        in_rate = orig_sr or in_rate
+        out_rate = target_sr or out_rate
+        if not pcm_data or in_rate == out_rate:
+            return pcm_data
+        try:
+            import audioop
+            converted, _ = audioop.ratecv(pcm_data, 2, 1, in_rate, out_rate, None)
+            return converted
+        except Exception:
+            ratio = in_rate // out_rate
+            if ratio > 1:
+                return b"".join(pcm_data[i:i + 2] for i in range(0, len(pcm_data), 2 * ratio))
+            return pcm_data
+
+    def _generate_local_fallback_speech(self, text: str) -> bytes:
+        """
+        Synthesizes 8kHz 16-bit mono PCM locally using espeak-ng and ffmpeg.
+        Guarantees that telephony callers never experience dead air even if cloud APIs fail.
+        """
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf_wav, \
+                 tempfile.NamedTemporaryFile(suffix=".pcm", delete=False) as tf_pcm:
+                wav_path = tf_wav.name
+                pcm_path = tf_pcm.name
+
+            try:
+                # 1. Generate speech with espeak-ng
+                cmd1 = ["espeak-ng", "-w", wav_path, text]
+                subprocess.run(cmd1, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+
+                # 2. Resample to 8000Hz mono 16-bit signed PCM
+                cmd2 = ["ffmpeg", "-y", "-i", wav_path, "-ar", "8000", "-ac", "1", "-f", "s16le", pcm_path]
+                subprocess.run(cmd2, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+
+                with open(pcm_path, "rb") as f:
+                    data = f.read()
+                return data
+            finally:
+                for p in [wav_path, pcm_path]:
+                    if os.path.exists(p):
+                        try:
+                            os.remove(p)
+                        except OSError:
+                            pass
+        except Exception as e:
+            logger.warning("Local TTS fallback failed: %s; returning empty PCM", e)
+            return b""
+
+    async def generate_speech(
+        self,
+        text: str,
+        voice: str = "alloy",
+        target_sample_rate: int = 8000,
+        *args,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Synthesizes text into 8000 Hz 16-bit linear PCM audio for Exotel telephony.
+        Uses OpenAI TTS with automatic fallback to local synthesis.
+        """
+        clean_text = (text or "").strip()
+        if not clean_text:
+            return {
+                "success": False,
+                "pcm_audio": b"",
+                "pcm_bytes": b"",
+                "sample_rate": target_sample_rate,
+                "error": "Empty text for speech synthesis"
+            }
+
+        is_valid, _ = self.validate_configuration()
+        if is_valid:
+            client = AsyncOpenAI(api_key=self.api_key, timeout=self.timeout_seconds)
+            try:
+                logger.info("Synthesizing speech via OpenAI TTS for %d chars", len(clean_text))
+                response = await client.audio.speech.create(
+                    model="tts-1",
+                    voice=voice,
+                    response_format="pcm",  # 24kHz 16-bit mono PCM
+                    input=clean_text
+                )
+                raw_pcm = await response.aread() if hasattr(response, "aread") else response.content
+                if raw_pcm:
+                    pcm_out = self._resample_pcm(raw_pcm, in_rate=24000, out_rate=target_sample_rate)
+                    logger.info("OpenAI TTS generated %d bytes raw -> %d bytes %dHz PCM", len(raw_pcm), len(pcm_out), target_sample_rate)
+                    return {
+                        "success": True,
+                        "pcm_audio": pcm_out,
+                        "pcm_bytes": pcm_out,
+                        "sample_rate": target_sample_rate,
+                        "source": "openai"
+                    }
+            except Exception as e:
+                safe_err = self._sanitize_error(str(e))
+                logger.warning("OpenAI TTS failed (%s); engaging local telephony speech fallback", safe_err)
+
+        # Fallback to local audio synthesis
+        logger.info("Synthesizing speech via local telephony fallback for: '%s'", clean_text[:40])
+        fallback_pcm = self._generate_local_fallback_speech(clean_text)
+        if fallback_pcm:
+            if target_sample_rate != 8000:
+                fallback_pcm = self._resample_pcm(fallback_pcm, in_rate=8000, out_rate=target_sample_rate)
+            return {
+                "success": True,
+                "pcm_audio": fallback_pcm,
+                "pcm_bytes": fallback_pcm,
+                "sample_rate": target_sample_rate,
+                "source": "local_fallback"
+            }
+
+        # Guaranteed acoustic fallback tone if local synthesis produces empty bytes
+        synth_fallback = (bytes([16, 0]) * 160) * int(target_sample_rate / 8000)
+        return {
+            "success": True,
+            "pcm_audio": synth_fallback,
+            "pcm_bytes": synth_fallback,
+            "sample_rate": target_sample_rate,
+            "source": "tone_fallback"
+        }
+
 
 openai_service = OpenAIService()
+

@@ -133,8 +133,9 @@ class CallManager:
             should_send_sms = True
 
         sms_result = None
-        owner_number = user_settings.owner_phone_number if user_settings else "+19876543210"
-        if should_send_sms:
+        import os
+        owner_number = (user_settings.owner_phone_number if user_settings else None) or os.getenv("OWNER_PHONE_NUMBER", "").strip()
+        if should_send_sms and owner_number:
             sms_result = await SMSService.dispatch_urgent_sms(
                 db=db,
                 call_id=call_id,

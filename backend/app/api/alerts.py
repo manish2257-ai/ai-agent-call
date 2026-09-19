@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends
+import os
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..models.models import User, UserSettings
 from ..schemas.schemas import TestAlertRequest
@@ -14,7 +15,9 @@ async def send_test_alert(
     db: Session = Depends(get_db)
 ):
     settings = db.query(UserSettings).filter(UserSettings.user_id == current_user.id).first()
-    owner_number = settings.owner_phone_number if settings else "+19876543210"
+    owner_number = (settings.owner_phone_number if settings else None) or os.getenv("OWNER_PHONE_NUMBER", "").strip()
+    if not owner_number:
+        raise HTTPException(status_code=400, detail="Owner phone number is not configured.")
 
     result = await SMSService.dispatch_urgent_sms(
         db=db,

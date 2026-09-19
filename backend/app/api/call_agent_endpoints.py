@@ -158,10 +158,6 @@ async def get_dashboard(user: Dict[str, Any] = Depends(get_current_user)):
 async def get_calls(user: Dict[str, Any] = Depends(get_current_user)):
     uid = user.get("uid", "user_demo_manish_123")
     calls = await firebase_manager.get_all_calls(uid)
-    if not calls and firebase_manager.demo_mode:
-        # Generate initial demo records if empty
-        _seed_initial_demo_calls(uid)
-        calls = await firebase_manager.get_all_calls(uid)
     return calls
 
 @router.get("/calls/{call_id}")
@@ -244,12 +240,14 @@ async def update_settings(new_settings: SettingsModel, user: Dict[str, Any] = De
 async def test_sms_alert(req: TestSmsRequest, user: Dict[str, Any] = Depends(get_current_user)):
     uid = user.get("uid", "user_demo_manish_123")
     settings = _get_user_settings(uid)
-    dest = req.destinationNumber or settings.get("ownerPhoneNumber", "+919876543210")
+    dest = req.destinationNumber or settings.get("ownerPhoneNumber") or os.getenv("OWNER_PHONE_NUMBER", "").strip()
+    if not dest:
+        raise HTTPException(status_code=400, detail="Destination phone number is not configured.")
 
     result = await exotel_sms_service.send_urgent_sms(
         destination_number=dest,
-        caller_name="Rahul Verma (Test)",
-        caller_number="+91 98765 43210",
+        caller_name="Caller (Test Alert)",
+        caller_number="+919810012345",
         urgency=req.urgency,
         reason=req.reason,
         summary=req.summary,
@@ -476,7 +474,7 @@ async def retry_whatsapp_alert(alert_id: str, user: Dict[str, Any] = Depends(get
         raise HTTPException(status_code=404, detail="Alert record not found")
 
     settings = _get_user_settings(uid)
-    dest = settings.get("whatsappRecipientNumber", target.get("callerNumber", "+919876543210"))
+    dest = settings.get("whatsappRecipientNumber") or os.getenv("WHATSAPP_RECIPIENT_PHONE_NUMBER") or target.get("callerNumber") or ""
     now_time = datetime.datetime.now().strftime("%I:%M %p")
 
     result = await whatsapp_service.send_urgent_alert(
@@ -621,27 +619,3 @@ async def trigger_retention_cleanup(user: Dict[str, Any] = Depends(get_current_u
         "deletedAlerts": len(cleanup_plan["alertsToDelete"]),
         "timestamp": cleanup_plan["timestamp"]
     }
-
-def _seed_initial_demo_calls(uid: str):
-    """Seed initial sample calls for demo mode."""
-    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-    c1 = {
-        "callId": "call_demo_outage",
-        "callerName": "Rahul Verma",
-        "callerNumber": "+91 98765 43210",
-        "reason": "Website outage - Customers cannot place orders",
-        "urgency": "HIGH",
-        "summary": "Rahul reported production checkout outage and payment failure.",
-        "callbackRequired": True,
-        "status": "ESCALATED",
-        "smsSent": True,
-        "duration": 54,
-        "consentStatus": "NOT_REQUIRED",
-        "createdAt": now,
-        "messages": [
-            {"speaker": "AI", "content": "Hello, you've reached Manish's AI assistant. How can I help?", "timestamp": "10:41 AM"},
-            {"speaker": "Caller", "content": "The website is down and customers cannot place orders!", "timestamp": "10:41 AM"},
-            {"speaker": "AI", "content": "I understand. I am dispatching a HIGH urgency SMS alert to Manish.", "timestamp": "10:42 AM"}
-        ]
-    }
-    firebase_manager._mock_calls[f"{uid}:call_demo_outage"] = c1

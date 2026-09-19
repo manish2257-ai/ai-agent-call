@@ -22,8 +22,13 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
+    import os
     # Initialize default settings
-    settings = UserSettings(user_id=user.id, owner_phone_number=user_in.phone_number or "+19876543210")
+    settings = UserSettings(
+        user_id=user.id,
+        owner_phone_number=user_in.phone_number or os.getenv("OWNER_PHONE_NUMBER") or None,
+        ai_phone_number=os.getenv("EXOTEL_VIRTUAL_NUMBER") or None
+    )
     db.add(settings)
     db.commit()
 

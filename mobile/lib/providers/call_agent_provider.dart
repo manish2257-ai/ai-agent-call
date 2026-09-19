@@ -49,76 +49,12 @@ class CallAgentProvider extends ChangeNotifier {
       _calls = await _apiService.getCalls();
       _alerts = await _apiService.getAlerts();
       _settings = await _apiService.getSettings();
-
-      if (_calls.isEmpty) {
-        _seedMockCalls();
-      }
     } catch (_) {
-      _seedMockCalls();
+      // Keep real states, no mock seeding in production
     }
 
     _isLoading = false;
     notifyListeners();
-  }
-
-  void _seedMockCalls() {
-    _calls = [
-      CallRecord(
-        callId: 'call_1',
-        callerName: 'Rahul Verma',
-        callerNumber: '+91 98765 43210',
-        reason: 'Website outage - Customers cannot place orders',
-        urgency: 'HIGH',
-        summary: 'Production website is down. Payment gateway fails for customers.',
-        callbackRequired: true,
-        status: 'ESCALATED',
-        smsSent: true,
-        whatsappSent: true,
-        fcmSent: true,
-        whatsappStatus: 'SENT',
-        duration: 54,
-        consentStatus: 'NOT_REQUIRED',
-        createdAt: 'Today, 10:41 AM',
-        messages: [
-          TranscriptMessage(speaker: 'AI', content: "Hello, you've reached Manish's AI assistant. How can I help?", timestamp: '10:41 AM'),
-          TranscriptMessage(speaker: 'Caller', content: "The website is down and users cannot check out.", timestamp: '10:41 AM'),
-          TranscriptMessage(speaker: 'AI', content: "I am dispatching a HIGH urgency SMS alert to Manish immediately.", timestamp: '10:42 AM'),
-        ],
-      ),
-      CallRecord(
-        callId: 'call_2',
-        callerName: 'Priya Sharma',
-        callerNumber: '+91 98112 23344',
-        reason: 'General inquiry about consulting slots',
-        urgency: 'LOW',
-        summary: 'Priya asked about advisory availability for mobile application development.',
-        callbackRequired: false,
-        status: 'COMPLETED',
-        smsSent: false,
-        duration: 38,
-        consentStatus: 'NOT_REQUIRED',
-        createdAt: 'Today, 09:15 AM',
-        messages: [
-          TranscriptMessage(speaker: 'AI', content: "Hello, you've reached Manish's AI assistant. How can I help?", timestamp: '09:15 AM'),
-          TranscriptMessage(speaker: 'Caller', content: "Hi, I wanted to inquire about consulting slots for this Friday?", timestamp: '09:15 AM'),
-        ],
-      ),
-    ];
-
-    _alerts = [
-      UrgentAlert(
-        alertId: 'alert_1',
-        callId: 'call_1',
-        callerName: 'Rahul Verma',
-        callerNumber: '+91 98765 43210',
-        urgency: 'HIGH',
-        reason: 'Website outage - Customers cannot place orders',
-        summary: 'Production checkout unavailable. Dispatched SMS to owner.',
-        status: 'DELIVERED',
-        provider: 'Exotel',
-        createdAt: 'Today, 10:42 AM',
-      )
-    ];
   }
 
   void toggleAgentOnline(bool value) {

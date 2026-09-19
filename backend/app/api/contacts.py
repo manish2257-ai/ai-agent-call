@@ -13,7 +13,7 @@ def get_contacts(current_user: User = Depends(get_current_user), db: Session = D
     # Seed default VIP contacts if empty
     if not contacts:
         defaults = [
-            Contact(user_id=current_user.id, name="Rahul Verma", phone_number="+919876543210", category="Client", notes="Lead Enterprise Client (Acme)", always_alert=True),
+            Contact(user_id=current_user.id, name="Rahul Verma", phone_number="+919810098765", category="Client", notes="Lead Enterprise Client (Acme)", always_alert=True),
             Contact(user_id=current_user.id, name="Ananya Kumar", phone_number="+919877665544", category="Family", notes="Immediate Family", always_alert=True, always_transfer=True),
             Contact(user_id=current_user.id, name="Dr. Mehta", phone_number="+919811002233", category="Other", notes="Family Physician", always_alert=True),
             Contact(user_id=current_user.id, name="RoboMarketer Spam", phone_number="+919800000001", category="Other", notes="Unsolicited loan telemarketing", is_blocked=True)

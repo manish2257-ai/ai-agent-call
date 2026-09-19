@@ -48,7 +48,7 @@ class SetupIntegrationsScreen extends StatelessWidget {
                       'WHATSAPP_ACCESS_TOKEN=<system_user_token>\n'
                       'WHATSAPP_PHONE_NUMBER_ID=<phone_number_id>\n'
                       'WHATSAPP_BUSINESS_ACCOUNT_ID=<waba_id>\n'
-                      'WHATSAPP_RECIPIENT_PHONE_NUMBER=+919876543210\n'
+                      'WHATSAPP_RECIPIENT_PHONE_NUMBER=<configured_owner_number>\n'
                       'WHATSAPP_API_VERSION=v20.0',
                       style: TextStyle(fontFamily: 'monospace', fontSize: 11, color: Color(0xFF69F0AE)),
                     ),
@@ -107,7 +107,7 @@ class SetupIntegrationsScreen extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(6)),
-                    child: const SelectableText('POST https://your-server.com/webhooks/exotel/incoming', style: TextStyle(fontFamily: 'monospace', fontSize: 12)),
+                    child: const SelectableText('POST /webhooks/exotel/incoming', style: TextStyle(fontFamily: 'monospace', fontSize: 12)),
                   ),
                   const SizedBox(height: 8),
                   const Text('4. Set status callback URL to:'),
@@ -115,7 +115,7 @@ class SetupIntegrationsScreen extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(6)),
-                    child: const SelectableText('POST https://your-server.com/webhooks/exotel/status', style: TextStyle(fontFamily: 'monospace', fontSize: 12)),
+                    child: const SelectableText('POST /webhooks/exotel/status', style: TextStyle(fontFamily: 'monospace', fontSize: 12)),
                   ),
                 ],
               ),

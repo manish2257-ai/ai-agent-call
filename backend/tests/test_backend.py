@@ -65,14 +65,14 @@ def test_sms_formatting():
     msg = SMSService.format_alert_message(
         template=None,
         caller="Rahul",
-        number="+919876543210",
+        number="+919810012345",
         urgency="HIGH",
         reason="Website is down",
         summary="Users cannot checkout",
         time_str="10:45 AM"
     )
     assert "Rahul" in msg
-    assert "+919876543210" in msg
+    assert "+919810012345" in msg
     assert "HIGH" in msg
     assert "Website is down" in msg
     assert "10:45 AM" in msg
@@ -92,12 +92,12 @@ async def test_call_lifecycle(db):
         email="test_owner@callagent.com",
         hashed_password=get_password_hash("pass"),
         full_name="Owner",
-        phone_number="+19876543210"
+        phone_number="+919810099999"
     )
     db.add(user)
     db.commit()
 
-    settings = UserSettings(user_id=user.id, owner_phone_number="+19876543210")
+    settings = UserSettings(user_id=user.id, owner_phone_number="+919810099999")
     db.add(settings)
     db.commit()
 
@@ -105,7 +105,7 @@ async def test_call_lifecycle(db):
     vip = Contact(
         user_id=user.id,
         name="Rahul Verma",
-        phone_number="+919876543210",
+        phone_number="+919810012345",
         category="Client",
         always_alert=True
     )
@@ -116,7 +116,7 @@ async def test_call_lifecycle(db):
     call = CallManager.create_incoming_call(
         db=db,
         user_id=user.id,
-        caller_number="+919876543210"
+        caller_number="+919810012345"
     )
     assert call.id.startswith("call_")
     assert call.caller_name == "Rahul Verma"

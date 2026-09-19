@@ -17,12 +17,31 @@ logger = logging.getLogger("exotel_telephony")
 
 class ExotelTelephonyService:
     def __init__(self):
-        self.api_key = os.getenv("EXOTEL_API_KEY", "").strip()
-        self.api_token = os.getenv("EXOTEL_API_TOKEN", "").strip()
-        self.account_sid = os.getenv("EXOTEL_ACCOUNT_SID", "").strip()
-        self.subdomain = os.getenv("EXOTEL_SUBDOMAIN", "api.exotel.com").strip()
-        self.virtual_number = os.getenv("EXOTEL_VIRTUAL_NUMBER", "").strip()
-        self.demo_mode = os.getenv("DEMO_MODE", "false").lower() == "true"
+        pass
+
+    @property
+    def api_key(self) -> str:
+        return os.getenv("EXOTEL_API_KEY", "").strip()
+
+    @property
+    def api_token(self) -> str:
+        return os.getenv("EXOTEL_API_TOKEN", "").strip()
+
+    @property
+    def account_sid(self) -> str:
+        return os.getenv("EXOTEL_ACCOUNT_SID", "").strip()
+
+    @property
+    def subdomain(self) -> str:
+        return os.getenv("EXOTEL_SUBDOMAIN", "api.exotel.com").strip()
+
+    @property
+    def virtual_number(self) -> str:
+        return os.getenv("EXOTEL_VIRTUAL_NUMBER", "").strip()
+
+    @property
+    def demo_mode(self) -> bool:
+        return os.getenv("DEMO_MODE", "false").lower() == "true"
 
     def verify_webhook(self, headers: Dict[str, str], payload: Dict[str, Any]) -> bool:
         """Verifies incoming Exotel webhook signature or accepts all in Demo Mode."""

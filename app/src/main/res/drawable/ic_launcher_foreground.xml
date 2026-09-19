@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item
-        android:width="66dp"
-        android:height="66dp"
-        android:drawable="@drawable/ic_app_foreground_asset"
-        android:gravity="center" />
-</layer-list>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M54,28c-14.36,0 -26,11.64 -26,26 0,5.1 1.47,9.85 4,13.87l-3,11.13 11.45,-3C44.33,78.58 48.97,80 54,80c14.36,0 26,-11.64 26,-26S68.36,28 54,28zM44.5,45c1.38,0 2.5,1.12 2.5,2.5s-1.12,2.5 -2.5,2.5 -2.5,-1.12 -2.5,-2.5 1.12,-2.5 2.5,-2.5zM63.5,50c-1.38,0 -2.5,-1.12 -2.5,-2.5s1.12,-2.5 2.5,-2.5 2.5,1.12 2.5,2.5 -1.12,2.5 -2.5,2.5zM54,67c-4.97,0 -9.19,-3.12 -10.84,-7.5h21.68C63.19,63.88 58.97,67 54,67z" />
+</vector>

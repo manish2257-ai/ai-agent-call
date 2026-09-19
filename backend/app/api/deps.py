@@ -25,14 +25,18 @@ def get_current_user(token: Optional[str] = Depends(oauth2_scheme), db: Session 
                 email="manish@aicallagent.com",
                 hashed_password=get_password_hash("password123"),
                 full_name="Manish Kumar",
-                phone_number="+19876543210"
+                phone_number=os.getenv("OWNER_PHONE_NUMBER") or None
             )
             db.add(default_user)
             db.commit()
             db.refresh(default_user)
 
             # Add default settings
-            default_settings = UserSettings(user_id=default_user.id)
+            default_settings = UserSettings(
+                user_id=default_user.id,
+                ai_phone_number=os.getenv("EXOTEL_VIRTUAL_NUMBER") or None,
+                owner_phone_number=os.getenv("OWNER_PHONE_NUMBER") or None
+            )
             db.add(default_settings)
             db.commit()
 

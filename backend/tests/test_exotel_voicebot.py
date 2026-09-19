@@ -69,10 +69,13 @@ def test_exotel_voicebot_url_resolver():
     response = client.get("/api/voice/exotel/voicebot-url", headers=headers)
     assert response.status_code == 200
     data = response.json()
+    assert data["url"] == "wss://ais-dev-drq6zz2gzpkest44ecny22-192566711824.asia-east1.run.app/ws/media-stream"
+    assert data["url"].startswith("wss://")
     assert data["status"] == "READY"
     assert data["protocol"] == "wss"
     assert data["endpoint"] == "/ws/media-stream"
-    assert data["public_wss_url"] == "wss://ais-dev-drq6zz2gzpkest44ecny22-192566711824.asia-east1.run.app/ws/media-stream"
+    assert data["websocket_url"] == data["url"]
+    assert data["public_wss_url"] == data["url"]
 
 def test_websocket_media_stream_handshake():
     """Verify WebSocket /ws/media-stream accepts connections and handles telephony events."""
@@ -141,7 +144,7 @@ def test_exotel_voice_xml_gather_flow():
 
 def test_exotel_transfer_xml_generation():
     """Verify Exotel transfer XML response structure."""
-    target = "+919876543210"
+    target = "+919810012345"
     xml = exotel_service.build_call_transfer_response(destination_phone=target, whisper_message="Transferring call")
     assert "<Dial" in xml
     assert target in xml

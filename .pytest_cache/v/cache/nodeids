@@ -1,4 +1,5 @@
 [
+  "backend/tests/test_app_config.py::test_get_app_config",
   "backend/tests/test_backend.py::test_call_lifecycle",
   "backend/tests/test_backend.py::test_health_endpoint",
   "backend/tests/test_backend.py::test_jwt_token_flow",
@@ -40,5 +41,17 @@
   "backend/tests/test_openai.py::test_openai_sanitizes_errors_and_never_exposes_key",
   "backend/tests/test_openai.py::test_openai_status_endpoint_never_exposes_key",
   "backend/tests/test_openai.py::test_openai_unconfigured_chat_completion",
-  "backend/tests/test_openai.py::test_openai_unconfigured_safety"
+  "backend/tests/test_openai.py::test_openai_unconfigured_safety",
+  "backend/tests/test_voice_pipeline.py::test_audio_conversion_to_8khz_mono_16bit",
+  "backend/tests/test_voice_pipeline.py::test_base64_pcm_decoding",
+  "backend/tests/test_voice_pipeline.py::test_correct_exotel_outgoing_media_json",
+  "backend/tests/test_voice_pipeline.py::test_openai_failure_fallback",
+  "backend/tests/test_voice_pipeline.py::test_pcm_buffering_and_vad",
+  "backend/tests/test_voice_pipeline.py::test_stream_sid_preservation",
+  "backend/tests/test_voice_pipeline.py::test_tts_failure_fallback",
+  "backend/tests/test_voice_pipeline.py::test_websocket_media_event_handling",
+  "backend/tests/test_voicebot_pipeline.py::test_calculate_rms",
+  "backend/tests/test_voicebot_pipeline.py::test_voicebot_session_media_vad_trigger",
+  "backend/tests/test_voicebot_pipeline.py::test_voicebot_session_start",
+  "backend/tests/test_voicebot_pipeline.py::test_voicebot_session_stop"
 ]

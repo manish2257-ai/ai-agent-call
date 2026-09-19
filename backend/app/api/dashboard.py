@@ -51,9 +51,10 @@ def get_dashboard_data(current_user: User = Depends(get_current_user), db: Sessi
             "time": last_urgent_alert.created_at.strftime("%I:%M %p") if last_urgent_alert.created_at else ""
         }
 
+    import os
     return {
         "is_agent_enabled": settings.is_agent_enabled,
-        "ai_phone_number": settings.ai_phone_number or "+18005550199",
+        "ai_phone_number": (settings.ai_phone_number if settings and settings.ai_phone_number else None) or os.getenv("EXOTEL_VIRTUAL_NUMBER") or "Not configured",
         "calls_today": calls_today,
         "total_calls": total_calls,
         "urgent_calls": urgent_calls,

@@ -56,7 +56,7 @@ def test_sms_duplicate_prevention():
 async def test_urgency_classifier_heuristic():
     outage_eval = await urgency_classifier.classify_urgency(
         caller_name="Rahul",
-        caller_number="+919876543210",
+        caller_number="+919810012345",
         reason="Server outage",
         summary="Production website is down and users cannot checkout",
         messages=[]
